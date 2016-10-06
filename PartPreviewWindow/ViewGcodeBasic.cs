@@ -65,6 +65,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 		private FlowLayoutWidget modelOptionsContainer;
 		private FlowLayoutWidget displayOptionsContainer;
 		private ViewControlsToggle viewControlsToggle;
+		private Button editGcodeButton;
 
 		private CheckBox expandModelOptions;
 		private CheckBox expandDisplayOptions;
@@ -419,6 +420,10 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 				displayOptionsContainer.Padding = new BorderDouble(left: 6);
 				displayOptionsContainer.Visible = false;
 				buttonRightPanel.AddChild(displayOptionsContainer);
+
+				editGcodeButton = ExpandMenuOptionFactory.Generate(LocalizedString.Get("Edit G-Code"));
+				editGcodeButton.Click += new EventHandler(editGcode_ButtonClick);
+				buttonRightPanel.AddChild(editGcodeButton);
 
 				GuiWidget verticalSpacer = new GuiWidget();
 				verticalSpacer.VAnchor = VAnchor.ParentBottomTop;
@@ -1213,6 +1218,11 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 
 			UiThread.RunOnIdle(CreateAndAddChildren);
 			startedSliceFromGenerateButton = false;
+		}
+
+		private void editGcode_ButtonClick(object sender, EventArgs e)
+		{
+			System.Diagnostics.Process.Start( gcodeViewWidget.FileNameAndPath );
 		}
 	}
 
