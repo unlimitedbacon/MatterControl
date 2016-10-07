@@ -97,9 +97,6 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				if (string.IsNullOrEmpty(username))
 				{ 
 					username = GuestDBPath;
-
-					// If ActiveUserName is empty or invalid and the credentials file exists, delete local credentials, resetting to unauthenticated guest mode
-					AuthenticationData.Instance.ClearActiveSession();
 				}
 				else
 				{
@@ -153,11 +150,19 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 					// Load or download on a background thread
 					var lastProfile = await LoadProfileAsync(Instance.LastProfileID);
 
-					UiThread.RunOnIdle(() =>
+					if (MatterControlApplication.IsLoading)
 					{
 						// Assign on the UI thread
 						ActiveSliceSettings.Instance = lastProfile ?? LoadEmptyProfile();
-					});
+					}
+					else
+					{
+						UiThread.RunOnIdle(() =>
+						{
+							// Assign on the UI thread
+							ActiveSliceSettings.Instance = lastProfile ?? LoadEmptyProfile();
+						});
+					}
 				});
 			}
 
