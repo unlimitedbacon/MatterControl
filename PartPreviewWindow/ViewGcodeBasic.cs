@@ -424,7 +424,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 				buttonRightPanel.AddChild(displayOptionsContainer);
 
 				editGcodeButton = ExpandMenuOptionFactory.Generate(LocalizedString.Get("Edit G-Code"));
-				editGcodeButton.Click += new EventHandler(editGcode_ButtonClick);
+				editGcodeButton.Click += editGcode_ButtonClick;
 				buttonRightPanel.AddChild(editGcodeButton);
 
 				GuiWidget verticalSpacer = new GuiWidget();
