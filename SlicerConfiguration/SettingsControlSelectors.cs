@@ -47,7 +47,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 {
 	public class PresetSelectorWidget : FlowLayoutWidget
 	{
-		private string defaultMenuItemText = "- default -".Localize();
+		private string defaultMenuItemText = "- none -".Localize();
 		private Button editButton;
 		private NamedSettingsLayers layerType;
 		GuiWidget pullDownContainer;
@@ -57,7 +57,8 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		public PresetSelectorWidget(string label, RGBA_Bytes accentColor, NamedSettingsLayers layerType, int extruderIndex)
 			: base(FlowDirection.TopToBottom)
 		{
-			SliceSettingsWidget.SettingChanged.RegisterEvent((s, e) =>
+			Name = label;
+			ActiveSliceSettings.SettingChanged.RegisterEvent((s, e) =>
 			{
 				StringEventArgs stringEvent = e as StringEventArgs;
 				if (stringEvent != null
@@ -218,6 +219,12 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 		private void MenuItem_Selected(object sender, EventArgs e)
 		{
+			Dictionary<string, string> settingBeforeChange = new Dictionary<string, string>();
+			foreach (var keyName in PrinterSettings.KnownSettings)
+			{
+				settingBeforeChange.Add(keyName, ActiveSliceSettings.Instance.GetValue(keyName));
+			}
+
 			var activeSettings = ActiveSliceSettings.Instance;
 			MenuItem item = (MenuItem)sender;
 
@@ -225,20 +232,42 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			{
 				if (activeSettings.GetMaterialPresetKey(extruderIndex) != item.Value)
 				{
+					// Restore deactivated user overrides by iterating the Material preset we're coming off of
+					activeSettings.RestoreConflictingUserOverrides(activeSettings.MaterialLayer);
+
 					activeSettings.SetMaterialPreset(extruderIndex, item.Value);
+
+					// Deactivate conflicting user overrides by iterating the Material preset we've just switched to
+					activeSettings.DeactivateConflictingUserOverrides(activeSettings.MaterialLayer);
 				}
 			}
 			else if (layerType == NamedSettingsLayers.Quality)
 			{
 				if (activeSettings.ActiveQualityKey != item.Value)
 				{
+					// Restore deactivated user overrides by iterating the Quality preset we're coming off of
+					activeSettings.RestoreConflictingUserOverrides(activeSettings.QualityLayer);
+
 					activeSettings.ActiveQualityKey = item.Value;
+
+					// Deactivate conflicting user overrides by iterating the Quality preset we've just switched to
+					activeSettings.DeactivateConflictingUserOverrides(activeSettings.QualityLayer);
 				}
 			}
+
+			// Ensure that activated or deactivated user overrides are always persisted to disk
+			activeSettings.Save();
 
 			UiThread.RunOnIdle(() =>
 			{
 				ApplicationController.Instance.ReloadAdvancedControlsPanel();
+				foreach (var keyName in PrinterSettings.KnownSettings)
+				{
+					if(settingBeforeChange[keyName] != ActiveSliceSettings.Instance.GetValue(keyName))
+					{
+						ActiveSliceSettings.OnSettingsChanged(SliceSettingsOrganizer.Instance.GetSettingsData(keyName));
+					}
+				}
 			});
 
 			editButton.Enabled = item.Text != defaultMenuItemText;
@@ -252,6 +281,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				MenuItemsPadding = new BorderDouble(10, 4, 10, 6),
 			};
 
+			dropDownList.Name = layerType.ToString();
 			dropDownList.Margin = new BorderDouble(0, 3);
 			dropDownList.MinimumSize = new Vector2(dropDownList.LocalBounds.Width, dropDownList.LocalBounds.Height);
 
@@ -262,10 +292,11 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			foreach (var layer in listSource)
 			{
 				MenuItem menuItem = dropDownList.AddItem(layer.Name, layer.LayerID);
+				menuItem.Name = layer.Name + " Menu";
 				menuItem.Selected += MenuItem_Selected;
 			}
 
-			MenuItem addNewPreset = dropDownList.AddItem(StaticData.Instance.LoadIcon("icon_plus.png", 32, 32), "Add New Setting...", "new");
+			MenuItem addNewPreset = dropDownList.AddItem(StaticData.Instance.LoadIcon("icon_plus.png", 32, 32), "Add New Setting".Localize() + "...", "new");
 			addNewPreset.Selected += (s, e) =>
 			{
 				var newLayer = new PrinterSettingsLayer();
@@ -325,7 +356,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			return dropDownList;
 		}
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		public override void OnClosed(EventArgs e)
 		{

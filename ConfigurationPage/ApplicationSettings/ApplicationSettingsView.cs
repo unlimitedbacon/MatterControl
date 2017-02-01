@@ -56,10 +56,11 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 		{
 			cannotRestartWhilePrintIsActiveMessage = "Oops! You cannot restart while a print is active.".Localize();
 			cannotRestartWhileActive = "Unable to restart".Localize();
-#if __ANDROID__
-			mainContainer.AddChild(new HorizontalLine(separatorLineColor));
+			if (UserSettings.Instance.IsTouchScreen)
+			{
+				mainContainer.AddChild(new HorizontalLine(separatorLineColor));
+			}
 
-#endif
 			if (UserSettings.Instance.IsTouchScreen)
 			{
 				mainContainer.AddChild(GetUpdateControl());
@@ -77,14 +78,16 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 			}
 
 
-#if !__ANDROID__
-			mainContainer.AddChild(GetThumbnailRenderingControl());
-			mainContainer.AddChild(new HorizontalLine(separatorLineColor));
+			#if !__ANDROID__
+			{
+				mainContainer.AddChild(GetThumbnailRenderingControl());
+				mainContainer.AddChild(new HorizontalLine(separatorLineColor));
 
-			mainContainer.AddChild(GetDisplayControl());
-			mainContainer.AddChild(new HorizontalLine(separatorLineColor));
-
-#endif
+				mainContainer.AddChild(GetDisplayControl());
+				mainContainer.AddChild(new HorizontalLine(separatorLineColor));
+			}
+			#endif
+			
 			if (UserSettings.Instance.IsTouchScreen)
 			{
 				mainContainer.AddChild(GetModeControl());
@@ -198,7 +201,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 			settingsLabel.TextColor = ActiveTheme.Instance.PrimaryTextColor;
 			settingsLabel.VAnchor = VAnchor.ParentTop;
 
-			Button displayControlRestartButton = textImageButtonFactory.Generate("Restart");
+			Button displayControlRestartButton = textImageButtonFactory.Generate("Restart".Localize());
 			displayControlRestartButton.VAnchor = Agg.UI.VAnchor.ParentCenter;
 			displayControlRestartButton.Visible = false;
 			displayControlRestartButton.Margin = new BorderDouble(right: 6);
@@ -223,8 +226,8 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 			optionsContainer.AddChild(interfaceOptionsDropList);
 			optionsContainer.Width = 200;
 
-			MenuItem responsizeOptionsDropDownItem = interfaceOptionsDropList.AddItem("Normal".Localize(), "responsive");
-			MenuItem touchscreenOptionsDropDownItem = interfaceOptionsDropList.AddItem("Touchscreen".Localize(), "touchscreen");
+			interfaceOptionsDropList.AddItem("Normal".Localize(), "responsive");
+			interfaceOptionsDropList.AddItem("Touchscreen".Localize(), "touchscreen");
 
 			List<string> acceptableUpdateFeedTypeValues = new List<string>() { "responsive", "touchscreen" };
 			string currentDisplayModeType = UserSettings.Instance.get(UserSettingsKey.ApplicationDisplayMode);
@@ -237,10 +240,10 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 			interfaceOptionsDropList.SelectedValue = UserSettings.Instance.get(UserSettingsKey.ApplicationDisplayMode);
 			interfaceOptionsDropList.SelectionChanged += (sender, e) =>
 			{
-				string releaseCode = ((DropDownList)sender).SelectedValue;
-				if (releaseCode != UserSettings.Instance.get(UserSettingsKey.ApplicationDisplayMode))
+				string displayMode = ((DropDownList)sender).SelectedValue;
+				if (displayMode != UserSettings.Instance.get(UserSettingsKey.ApplicationDisplayMode))
 				{
-					UserSettings.Instance.set(UserSettingsKey.ApplicationDisplayMode, releaseCode);
+					UserSettings.Instance.set(UserSettingsKey.ApplicationDisplayMode, displayMode);
 					displayControlRestartButton.Visible = true;
 				}
 			};
@@ -358,7 +361,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 			optionsContainer.AddChild(languageSelector);
 			optionsContainer.Width = 200;
 
-			languageRestartButton = textImageButtonFactory.Generate("Restart");
+			languageRestartButton = textImageButtonFactory.Generate("Restart".Localize());
 			languageRestartButton.VAnchor = Agg.UI.VAnchor.ParentCenter;
 			languageRestartButton.Visible = false;
 			languageRestartButton.Margin = new BorderDouble(right: 6);
@@ -406,7 +409,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 				&& settings.Helpers.ActiveSliceEngineType() != SlicingEngineTypes.MatterSlice)
 			{
 				settings.Helpers.ActiveSliceEngineType(SlicingEngineTypes.MatterSlice);
-				ApplicationController.Instance.ReloadAll(null, null);
+				ApplicationController.Instance.ReloadAll();
 			} 
 
 			optionsContainer.AddChild(new SliceEngineSelector("Slice Engine".Localize()));
@@ -446,11 +449,14 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 
 			if (acceptableUpdateFeedTypeValues.IndexOf(currentThumbnailRenderingMode) == -1)
 			{
-#if __ANDROID__
+				if (!UserSettings.Instance.IsTouchScreen)
+				{
 					UserSettings.Instance.set(UserSettingsKey.ThumbnailRenderingMode, "orthographic");
-#else
+				}
+				else
+				{
 					UserSettings.Instance.set(UserSettingsKey.ThumbnailRenderingMode, "raytraced");
-#endif
+				}
 			}
 
 			interfaceOptionsDropList.SelectedValue = UserSettings.Instance.get(UserSettingsKey.ThumbnailRenderingMode);
@@ -480,7 +486,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 							}
 						}
 
-						ApplicationController.Instance.ReloadAll(null, null);
+						ApplicationController.Instance.ReloadAll();
 					};
 
 					UiThread.RunOnIdle(() =>
@@ -524,7 +530,6 @@ namespace MatterHackers.MatterControl.ConfigurationPage
                 LocalizedString.ResetTranslationMap();
                 ApplicationController.Instance.MainView = new TouchscreenView();
                 app.RemoveAllChildren();
-                app.AddChild(new SoftKeyboardContentOffset(ApplicationController.Instance.MainView));
                 app.AnchorAll();
 #endif
 			});
@@ -546,6 +551,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 			{
 				UserSettings.Instance.Fields.IsSimpleMode = false;
 			}
+			ApplicationController.Instance.ReloadAll();
 		}
 
 		private void ReleaseOptionsDropList_SelectionChanged(object sender, EventArgs e)

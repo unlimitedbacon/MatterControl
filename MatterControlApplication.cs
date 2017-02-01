@@ -34,13 +34,11 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Threading;
-using System.Threading.Tasks;
 using Gaming.Game;
 using MatterHackers.Agg;
 using MatterHackers.Agg.Image;
 using MatterHackers.Agg.PlatformAbstract;
 using MatterHackers.Agg.UI;
-using MatterHackers.GuiAutomation;
 using MatterHackers.Localizations;
 using MatterHackers.MatterControl.DataStorage;
 using MatterHackers.MatterControl.PluginSystem;
@@ -58,15 +56,16 @@ namespace MatterHackers.MatterControl
 	public class MatterControlApplication : SystemWindow
 	{
 #if DEBUG
+
 		//public static string MCWSBaseUri { get; } = "http://192.168.2.129:9206";
 		public static string MCWSBaseUri { get; } = "https://mattercontrol-test.appspot.com";
+
 #else
 		public static string MCWSBaseUri { get; } = "https://mattercontrol.appspot.com";
 #endif
 
-		public static bool CameraInUseByOtherProcess = false;
+		public static bool CameraInUseByExternalProcess { get; set; } = false;
 		public bool RestartOnClose = false;
-		private static readonly Vector2 minSize = new Vector2(600, 600);
 		private static MatterControlApplication instance;
 		private string[] commandLineArgs = null;
 		private string confirmExit = "Confirm Exit".Localize();
@@ -84,10 +83,10 @@ namespace MatterHackers.MatterControl
 		private Stopwatch totalDrawTime = new Stopwatch();
 
 #if true//!DEBUG
-		static RaygunClient _raygunClient = GetCorrectClient();
+		private static RaygunClient _raygunClient = GetCorrectClient();
 #endif
 
-		static RaygunClient GetCorrectClient()
+		private static RaygunClient GetCorrectClient()
 		{
 			if (OsInformation.OperatingSystem == OSType.Mac)
 			{
@@ -103,7 +102,7 @@ namespace MatterHackers.MatterControl
 
 		static MatterControlApplication()
 		{
-			if (OsInformation.OperatingSystem == OSType.Mac)
+			if (OsInformation.OperatingSystem == OSType.Mac && StaticData.Instance == null)
 			{
 				// Set working directory - this duplicates functionality in Main but is necessary on OSX as Main fires much later (after the constructor in this case)
 				// resulting in invalid paths due to path tests running before the working directory has been overridden. Setting the value before initializing StaticData
@@ -134,8 +133,6 @@ namespace MatterHackers.MatterControl
 			this.commandLineArgs = Environment.GetCommandLineArgs();
 			Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
 
-			bool forceSofwareRendering = false;
-
 			for (int currentCommandIndex = 0; currentCommandIndex < commandLineArgs.Length; currentCommandIndex++)
 			{
 				string command = commandLineArgs[currentCommandIndex];
@@ -143,8 +140,7 @@ namespace MatterHackers.MatterControl
 				switch (commandUpper)
 				{
 					case "FORCE_SOFTWARE_RENDERING":
-						forceSofwareRendering = true;
-						GL.ForceSoftwareRendering();
+						GL.HardwareAvailable = false;
 						break;
 
 					case "CLEAR_CACHE":
@@ -262,9 +258,10 @@ namespace MatterHackers.MatterControl
 
 			GuiWidget.DefaultEnforceIntegerBounds = true;
 
-			if (UserSettings.Instance.DisplayMode == ApplicationDisplayType.Touchscreen)
+			if (UserSettings.Instance.IsTouchScreen)
 			{
 				GuiWidget.DeviceScale = 1.3;
+				SystemWindow.ShareSingleOsWindow = true;
 			}
 			//GuiWidget.DeviceScale = 2;
 
@@ -288,7 +285,7 @@ namespace MatterHackers.MatterControl
 #endif
 			this.AnchorAll();
 
-			if (!forceSofwareRendering)
+			if (GL.HardwareAvailable)
 			{
 				UseOpenGL = true;
 			}
@@ -303,7 +300,7 @@ namespace MatterHackers.MatterControl
 			UiThread.RunOnIdle(CheckOnPrinter);
 
 			string desktopPosition = ApplicationSettings.Instance.get(ApplicationSettingsKey.DesktopPosition);
-			if (desktopPosition != null && desktopPosition != "")
+			if (!string.IsNullOrEmpty(desktopPosition))
 			{
 				string[] sizes = desktopPosition.Split(',');
 
@@ -313,6 +310,12 @@ namespace MatterHackers.MatterControl
 
 				DesktopPosition = new Point2D(xpos, ypos);
 			}
+			else
+			{
+				DesktopPosition = new Point2D(-1, -1);
+			}
+
+			this.Maximized = ApplicationSettings.Instance.get(ApplicationSettingsKey.MainWindowMaximized) == "true";
 		}
 
 		public void TakePhoto(string imageFileName)
@@ -327,7 +330,8 @@ namespace MatterHackers.MatterControl
 			PictureTaken?.Invoke(null, null);
 		}
 
-		bool dropWasOnChild = true;
+		private bool dropWasOnChild = true;
+
 		public override void OnDragEnter(FileDropEventArgs fileDropEventArgs)
 		{
 			base.OnDragEnter(fileDropEventArgs);
@@ -402,7 +406,7 @@ namespace MatterHackers.MatterControl
 			}
 		}
 
-		private event EventHandler unregisterEvent;
+		private EventHandler unregisterEvent;
 
 		public static MatterControlApplication Instance
 		{
@@ -420,17 +424,25 @@ namespace MatterHackers.MatterControl
 
 		public event EventHandler PictureTaken;
 
+		private static Vector2 minSize { get; set; } = new Vector2(600, 600);
+
 		public static MatterControlApplication CreateInstance(int overrideWidth = -1, int overrideHeight = -1)
 		{
 			int width = 0;
 			int height = 0;
 
-			// check if the app has a size alread set
+			if (UserSettings.Instance.IsTouchScreen)
+			{
+				minSize = new Vector2(800, 480);
+			}
+
+			// check if the app has a size already set
 			string windowSize = ApplicationSettings.Instance.get(ApplicationSettingsKey.WindowSize);
 			if (windowSize != null && windowSize != "")
 			{
 				// try and open our window matching the last size that we had for it.
 				string[] sizes = windowSize.Split(',');
+
 				width = Math.Max(int.Parse(sizes[0]), (int)minSize.x + 1);
 				height = Math.Max(int.Parse(sizes[1]), (int)minSize.y + 1);
 			}
@@ -466,14 +478,6 @@ namespace MatterHackers.MatterControl
 			using (new PerformanceTimer("Startup", "Total"))
 			{
 				instance = new MatterControlApplication(width, height);
-
-				if (instance.DesktopPosition == new Point2D())
-				{
-					Point2D desktopSize = OsInformation.DesktopSize;
-
-					// Now try and center the window. If this is saved it will got overridden
-					instance.DesktopPosition = new Point2D((desktopSize.x - instance.Width) / 2, (desktopSize.y - instance.Height) / 2);
-				}
 			}
 
 			return instance;
@@ -594,35 +598,66 @@ namespace MatterHackers.MatterControl
 		public override void OnClosing(out bool CancelClose)
 		{
 			// save the last size of the window so we can restore it next time.
-			ApplicationSettings.Instance.set(ApplicationSettingsKey.WindowSize, string.Format("{0},{1}", Width, Height));
-			ApplicationSettings.Instance.set(ApplicationSettingsKey.DesktopPosition, string.Format("{0},{1}", DesktopPosition.x, DesktopPosition.y));
+			ApplicationSettings.Instance.set(ApplicationSettingsKey.MainWindowMaximized, this.Maximized.ToString().ToLower());
+
+			if (!this.Maximized)
+			{
+				ApplicationSettings.Instance.set(ApplicationSettingsKey.WindowSize, string.Format("{0},{1}", Width, Height));
+				ApplicationSettings.Instance.set(ApplicationSettingsKey.DesktopPosition, string.Format("{0},{1}", DesktopPosition.x, DesktopPosition.y));
+			}
 
 			//Save a snapshot of the prints in queue
 			QueueData.Instance.SaveDefaultQueue();
 
 			if (PrinterConnectionAndCommunication.Instance.PrinterIsPrinting)
 			{
-				// Needed as we can't assign to CancelClose inside of the lambda below
-				bool continueWithShutdown = false;
-
-				StyledMessageBox.ShowMessageBox(
-					(shutdownConfirmed) => continueWithShutdown = shutdownConfirmed,
-					"Are you sure you want to abort the current print and close MatterControl?".Localize(),
-					"Abort Print".Localize(),
-					StyledMessageBox.MessageType.YES_NO);
-
-				if (continueWithShutdown)
+				if (PrinterConnectionAndCommunication.Instance.CommunicationState != PrinterConnectionAndCommunication.CommunicationStates.PrintingFromSd)
 				{
-					if (PrinterConnectionAndCommunication.Instance.CommunicationState != PrinterConnectionAndCommunication.CommunicationStates.PrintingFromSd)
+					// Needed as we can't assign to CancelClose inside of the lambda below
+					bool continueWithShutdown = false;
+
+					StyledMessageBox.ShowMessageBox(
+						(shutdownConfirmed) => continueWithShutdown = shutdownConfirmed,
+						"Are you sure you want to abort the current print and close MatterControl?".Localize(),
+						"Abort Print".Localize(),
+						StyledMessageBox.MessageType.YES_NO);
+
+					if (continueWithShutdown)
 					{
 						PrinterConnectionAndCommunication.Instance.Disable();
+						this.Close();
+						CancelClose = false;
 					}
-					this.Close();
+					else
+					{
+						// It's safe to cancel an active print because PrinterConnectionAndCommunication.Disable will be called
+						// when MatterControlApplication.OnClosed is invoked
+						CancelClose = true;
+					}
 				}
+				else
+				{
+					bool continueWithShutdown = false;
 
-				// It's safe to cancel an active print because PrinterConnectionAndCommunication.Disable will be called 
-				// when MatterControlApplication.OnClosed is invoked
-				CancelClose = true;
+					StyledMessageBox.ShowMessageBox(
+						(shutdownConfirmed) => continueWithShutdown = shutdownConfirmed,
+						"Are you sure you want exit while a print is running from SD Card?\n\nNote: If you exit, it is recommended you wait until the print is completed before running MatterControl again.".Localize(),
+						"Exit while printing".Localize(),
+						StyledMessageBox.MessageType.YES_NO);
+
+					if (continueWithShutdown)
+					{
+						PrinterConnectionAndCommunication.Instance.Disable();
+						this.Close();
+						CancelClose = false;
+					}
+					else
+					{
+						// It's safe to cancel an active print because PrinterConnectionAndCommunication.Disable will be called
+						// when MatterControlApplication.OnClosed is invoked
+						CancelClose = true;
+					}
+				}
 			}
 			else if (PartsSheet.IsSaving())
 			{
@@ -845,32 +880,17 @@ namespace MatterHackers.MatterControl
 #endif
 		}
 
-		bool showNamesUnderMouse = false;
+		private bool showNamesUnderMouse = false;
+
 		public override void OnKeyDown(KeyEventArgs keyEvent)
 		{
-			if (keyEvent.KeyCode == Keys.F2)
-			{
-				Task.Run((Action)AutomationTest);
-			}
-			else if (keyEvent.KeyCode == Keys.F1)
+			if (keyEvent.KeyCode == Keys.F1)
 			{
 				showNamesUnderMouse = !showNamesUnderMouse;
 			}
-
 			base.OnKeyDown(keyEvent);
 		}
 
-		private void AutomationTest()
-		{
-			AutomationRunner test = new AutomationRunner();
-			test.ClickByName("Library Tab", 5);
-			test.ClickByName("Queue Tab", 5);
-			test.ClickByName("Queue Item SkeletonArm_Med", 5);
-			test.ClickByName("3D View Edit", 5);
-			test.Wait(.2);
-			test.DragByName("SkeletonArm_Med_IObject3D", 5);
-			test.DropByName("SkeletonArm_Med_IObject3D", 5, offset: new Point2D(0, -40));
-		}
 		public static void CheckKnownAssemblyConditionalCompSymbols()
 		{
 			MatterControlApplication.AssertDebugNotDefined();

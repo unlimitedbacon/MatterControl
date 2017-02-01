@@ -45,7 +45,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 {
 	public class ViewGcodeWidget : GuiWidget
 	{
-		public EventHandler DoneLoading;
+		public event EventHandler DoneLoading;
 
 		public ProgressChangedEventHandler LoadingProgressChanged;
 
@@ -356,7 +356,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 
 					//using (new PerformanceTimer("GCode Timer", "Render"))
 					{
-						gCodeRenderer.Render(graphics2D, renderInfo);
+						gCodeRenderer?.Render(graphics2D, renderInfo);
 					}
 				}
 			}

@@ -46,23 +46,6 @@ namespace MatterHackers.MatterControl.ActionBar
 {
 	public class PrintStatusRow : FlowLayoutWidget
 	{
-		protected static event Action<GuiWidget> privateAddIconToPrintStatusRow;
-		protected static FlowLayoutWidget iconContainer;
-		public static event Action<GuiWidget> AddIconToPrintStatusRow
-		{
-			add
-			{
-				privateAddIconToPrintStatusRow += value;
-				// and call it right away
-				value(iconContainer);
-			}
-
-			remove
-			{
-				privateAddIconToPrintStatusRow -= value;
-			}
-		}
-
 		public static GuiWidget Create(QueueDataView queueDataView)
 		{
 			if (UserSettings.Instance.IsTouchScreen)
@@ -73,15 +56,6 @@ namespace MatterHackers.MatterControl.ActionBar
 			{
 				return new DesktopPrintStatusRow(queueDataView);
 			}
-		}
-
-		protected PrintStatusRow()
-		{
-		}
-
-		protected void DoAddIconToPrintStatusRow()
-		{
-			 privateAddIconToPrintStatusRow?.Invoke(iconContainer);
 		}
 	}
 
@@ -95,7 +69,6 @@ namespace MatterHackers.MatterControl.ActionBar
 		private TemperatureWidgetBase bedTemperatureWidget;
 		private TemperatureWidgetBase extruderTemperatureWidget;
 		private QueueDataView queueDataView;
-		private TextInfo textInfo = new CultureInfo("en-US", false).TextInfo;
 
 		public DesktopPrintStatusRow(QueueDataView queueDataView)
 		{
@@ -109,11 +82,9 @@ namespace MatterHackers.MatterControl.ActionBar
 			AddHandlers();
 
 			onActivePrintItemChanged(null, null);
-
-			DoAddIconToPrintStatusRow();
 		}
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		private string ActivePrintStatusText
 		{
@@ -132,10 +103,9 @@ namespace MatterHackers.MatterControl.ActionBar
 			{
 				activePrintPreviewImage.ItemWrapper.SlicingOutputMessage -= PrintItem_SlicingOutputMessage;
 			}
-			if (unregisterEvents != null)
-			{
-				unregisterEvents(this, null);
-			}
+
+			unregisterEvents?.Invoke(this, null);
+		
 			base.OnClosed(e);
 		}
 
@@ -189,7 +159,7 @@ namespace MatterHackers.MatterControl.ActionBar
 			FlowLayoutWidget printStatusContainer = CreateActivePrinterInfoWidget();
 			printStatusContainer.VAnchor |= VAnchor.ParentTop;
 
-			iconContainer = new FlowLayoutWidget(FlowDirection.TopToBottom);
+			var iconContainer = new FlowLayoutWidget(FlowDirection.TopToBottom);
 			iconContainer.Name = "PrintStatusRow.IconContainer";
 			iconContainer.VAnchor |= VAnchor.ParentTop;
 			iconContainer.Margin = new BorderDouble(top: 3);
@@ -215,7 +185,7 @@ namespace MatterHackers.MatterControl.ActionBar
 			topRow.Name = "PrintStatusRow.ActivePrinterInfo.TopRow";
 			topRow.HAnchor = HAnchor.ParentLeftRight;
 
-			string nextPrintLabel = LocalizedString.Get("Next Print");
+			string nextPrintLabel = "Next Print".Localize();
 			string nextPrintLabelFull = string.Format("{0}:", nextPrintLabel);
 			activePrintLabel = getPrintStatusLabel(nextPrintLabelFull, pointSize: 11);
 			activePrintLabel.VAnchor = VAnchor.ParentTop;
@@ -254,11 +224,6 @@ namespace MatterHackers.MatterControl.ActionBar
 			autoLevelButton.Cursor = Cursors.Hand;
 			autoLevelButton.Visible = ActiveSliceSettings.Instance.GetValue<bool>(SettingsKey.print_leveling_enabled);
 
-			ActiveSliceSettings.ActivePrinterChanged.RegisterEvent((sender, e) =>
-			{
-				autoLevelButton.Visible = ActiveSliceSettings.Instance.GetValue<bool>(SettingsKey.print_leveling_enabled);
-			}, ref unregisterEvents);
-
 			PrinterSettings.PrintLevelingEnabledChanged.RegisterEvent((sender, e) =>
 			{
 				autoLevelButton.Visible = ActiveSliceSettings.Instance.GetValue<bool>(SettingsKey.print_leveling_enabled);
@@ -278,16 +243,16 @@ namespace MatterHackers.MatterControl.ActionBar
 				switch (PrinterConnectionAndCommunication.Instance.CommunicationState)
 				{
 					case PrinterConnectionAndCommunication.CommunicationStates.Disconnected:
-						return LocalizedString.Get("Not connected. Press 'Connect' to enable printing.");
+						return "Not connected. Press 'Connect' to enable printing.".Localize();
 
 					case PrinterConnectionAndCommunication.CommunicationStates.AttemptingToConnect:
-						string attemptToConnect = LocalizedString.Get("Attempting to Connect");
+						string attemptToConnect = "Attempting to Connect".Localize();
 						string attemptToConnectFull = string.Format("{0}...", attemptToConnect);
 						return attemptToConnectFull;
 
 					case PrinterConnectionAndCommunication.CommunicationStates.ConnectionLost:
 					case PrinterConnectionAndCommunication.CommunicationStates.FailedToConnect:
-						return LocalizedString.Get("Unable to communicate with printer.");
+						return "Unable to communicate with printer.".Localize();
 
 					default:
 						return "";
@@ -371,13 +336,11 @@ namespace MatterHackers.MatterControl.ActionBar
 		{
 			if (PrinterConnectionAndCommunication.Instance.ActivePrintItem != null)
 			{
-				string labelName = textInfo.ToTitleCase(PrinterConnectionAndCommunication.Instance.ActivePrintItem.Name);
-				labelName = labelName.Replace('_', ' ');
-				this.activePrintName.Text = labelName;
+				this.activePrintName.Text = PrinterConnectionAndCommunication.Instance.ActivePrintItem.GetFriendlyName();
 			}
 			else
 			{
-				this.activePrintName.Text = LocalizedString.Get("No items in the print queue");
+				this.activePrintName.Text = "No items in the print queue".Localize();
 			}
 		}
 
@@ -391,8 +354,8 @@ namespace MatterHackers.MatterControl.ActionBar
 				int totalMinutesInPrint = (int)(totalSecondsInPrint / 60 - totalHoursInPrint * 60);
 				totalSecondsInPrint = totalSecondsInPrint % 60;
 
-				string estimatedTimeLabel = LocalizedString.Get("Estimated Print Time");
-				string calculatingLabel = LocalizedString.Get("Calculating...");
+				string estimatedTimeLabel = "Estimated Print Time".Localize();
+				string calculatingLabel = "Calculating...".Localize();
 				string totalPrintTimeText;
 
 				if (totalSecondsInPrint > 0)
@@ -410,7 +373,7 @@ namespace MatterHackers.MatterControl.ActionBar
 				{
 					if (totalSecondsInPrint < 0)
 					{
-						totalPrintTimeText = string.Format("{0}", LocalizedString.Get("Streaming GCode..."));
+						totalPrintTimeText = string.Format("{0}", "Streaming GCode...".Localize());
 					}
 					else
 					{
@@ -421,13 +384,13 @@ namespace MatterHackers.MatterControl.ActionBar
 				//GC.WaitForFullGCComplete();
 
 				string printPercentRemainingText;
-				string printPercentCompleteText = LocalizedString.Get("complete");
+				string printPercentCompleteText = "complete".Localize();
 				printPercentRemainingText = string.Format("{0:0.0}% {1}", PrinterConnectionAndCommunication.Instance.PercentComplete, printPercentCompleteText);
 
 				switch (PrinterConnectionAndCommunication.Instance.CommunicationState)
 				{
 					case PrinterConnectionAndCommunication.CommunicationStates.PreparingToPrint:
-						string preparingPrintLabel = LocalizedString.Get("Preparing To Print");
+						string preparingPrintLabel = "Preparing To Print".Localize();
 						string preparingPrintLabelFull = string.Format("{0}:", preparingPrintLabel);
 						activePrintLabel.Text = preparingPrintLabelFull;
 						//ActivePrintStatusText = ""; // set by slicer
@@ -443,7 +406,7 @@ namespace MatterHackers.MatterControl.ActionBar
 
 					case PrinterConnectionAndCommunication.CommunicationStates.Paused:
 						{
-							string activePrintLabelText = LocalizedString.Get("Printing Paused");
+							string activePrintLabelText = "Printing Paused".Localize();
 							string activePrintLabelTextFull = string.Format("{0}:", activePrintLabelText);
 							activePrintLabel.Text = activePrintLabelTextFull;
 							ActivePrintStatusText = totalPrintTimeText;
@@ -451,14 +414,14 @@ namespace MatterHackers.MatterControl.ActionBar
 						break;
 
 					case PrinterConnectionAndCommunication.CommunicationStates.FinishedPrint:
-						string donePrintingText = LocalizedString.Get("Done Printing");
+						string donePrintingText = "Done Printing".Localize();
 						string donePrintingTextFull = string.Format("{0}:", donePrintingText);
 						activePrintLabel.Text = donePrintingTextFull;
 						ActivePrintStatusText = totalPrintTimeText;
 						break;
 
 					default:
-						string nextPrintLabelActive = LocalizedString.Get("Next Print");
+						string nextPrintLabelActive = "Next Print".Localize();
 						string nextPrintLabelActiveFull = string.Format("{0}: ", nextPrintLabelActive);
 
 						activePrintLabel.Text = nextPrintLabelActiveFull;
@@ -468,11 +431,11 @@ namespace MatterHackers.MatterControl.ActionBar
 			}
 			else
 			{
-				string nextPrintLabel = LocalizedString.Get("Next Print");
+				string nextPrintLabel = "Next Print".Localize();
 				string nextPrintLabelFull = string.Format("{0}:", nextPrintLabel);
 
 				activePrintLabel.Text = nextPrintLabelFull;
-				ActivePrintStatusText = string.Format(LocalizedString.Get("Press 'Add' to choose an item to print"));
+				ActivePrintStatusText = string.Format("Press 'Add' to choose an item to print".Localize());
 			}
 		}
 	}
@@ -488,7 +451,6 @@ namespace MatterHackers.MatterControl.ActionBar
 		private TemperatureWidgetBase extruderTemperatureWidget;
 		private QueueDataView queueDataView;
 		private Button setupButton;
-		private TextInfo textInfo = new CultureInfo("en-US", false).TextInfo;
 		private Stopwatch timeSinceLastDrawTime = new Stopwatch();
 
 		public TouchScreenPrintStatusRow(QueueDataView queueDataView)
@@ -507,7 +469,7 @@ namespace MatterHackers.MatterControl.ActionBar
 
 		public delegate void AddIconToPrintStatusRowDelegate(GuiWidget iconContainer);
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 		private string ActivePrintStatusText
 		{
 			set
@@ -632,7 +594,7 @@ namespace MatterHackers.MatterControl.ActionBar
 			topRow.Name = "PrintStatusRow.ActivePrinterInfo.TopRow";
 			topRow.HAnchor = HAnchor.ParentLeftRight;
 
-			string nextPrintLabel = LocalizedString.Get("Next Print");
+			string nextPrintLabel = "Next Print".Localize();
 			string nextPrintLabelFull = string.Format("{0}:", nextPrintLabel);
 			activePrintLabel = getPrintStatusLabel(nextPrintLabelFull, pointSize: 11);
 			activePrintLabel.VAnchor = VAnchor.ParentTop;
@@ -692,11 +654,6 @@ namespace MatterHackers.MatterControl.ActionBar
 			autoLevelButton.Margin = new Agg.BorderDouble(top: 3);
 			autoLevelButton.ToolTipText = "Print leveling is enabled.".Localize();
 			autoLevelButton.Visible = ActiveSliceSettings.Instance.GetValue<bool>(SettingsKey.print_leveling_enabled);
-
-			ActiveSliceSettings.ActivePrinterChanged.RegisterEvent((sender, e) =>
-			{
-				autoLevelButton.Visible = ActiveSliceSettings.Instance.GetValue<bool>(SettingsKey.print_leveling_enabled);
-			}, ref unregisterEvents);
 
 			PrinterSettings.PrintLevelingEnabledChanged.RegisterEvent((sender, e) =>
 			{
@@ -809,13 +766,11 @@ namespace MatterHackers.MatterControl.ActionBar
 		{
 			if (PrinterConnectionAndCommunication.Instance.ActivePrintItem != null)
 			{
-				string labelName = textInfo.ToTitleCase(PrinterConnectionAndCommunication.Instance.ActivePrintItem.Name);
-				labelName = labelName.Replace('_', ' ');
-				this.activePrintName.Text = labelName;
+				this.activePrintName.Text = PrinterConnectionAndCommunication.Instance.ActivePrintItem.GetFriendlyName();
 			}
 			else
 			{
-				this.activePrintName.Text = LocalizedString.Get("No items in the print queue");
+				this.activePrintName.Text = "No items in the print queue".Localize();
 			}
 		}
 
@@ -829,8 +784,8 @@ namespace MatterHackers.MatterControl.ActionBar
 				int totalMinutesInPrint = (int)(totalSecondsInPrint / 60 - totalHoursInPrint * 60);
 				totalSecondsInPrint = totalSecondsInPrint % 60;
 
-				string estimatedTimeLabel = LocalizedString.Get("Est. Print Time");
-				string calculatingLabel = LocalizedString.Get("Calculating...");
+				string estimatedTimeLabel = "Est. Print Time".Localize();
+				string calculatingLabel = "Calculating...".Localize();
 				string totalPrintTimeText;
 
 				if (totalSecondsInPrint > 0)
@@ -848,7 +803,7 @@ namespace MatterHackers.MatterControl.ActionBar
 				{
 					if (totalSecondsInPrint < 0)
 					{
-						totalPrintTimeText = string.Format("{0}", LocalizedString.Get("Streaming GCode..."));
+						totalPrintTimeText = string.Format("{0}", "Streaming GCode...".Localize());
 					}
 					else
 					{
@@ -859,13 +814,13 @@ namespace MatterHackers.MatterControl.ActionBar
 				//GC.WaitForFullGCComplete();
 
 				string printPercentRemainingText;
-				string printPercentCompleteText = LocalizedString.Get("complete");
+				string printPercentCompleteText = "complete".Localize();
 				printPercentRemainingText = string.Format("{0:0.0}% {1}", PrinterConnectionAndCommunication.Instance.PercentComplete, printPercentCompleteText);
 
 				switch (PrinterConnectionAndCommunication.Instance.CommunicationState)
 				{
 					case PrinterConnectionAndCommunication.CommunicationStates.PreparingToPrint:
-						string preparingPrintLabel = LocalizedString.Get("Preparing To Print");
+						string preparingPrintLabel = "Preparing To Print".Localize();
 						string preparingPrintLabelFull = string.Format("{0}:", preparingPrintLabel);
 						activePrintLabel.Text = preparingPrintLabelFull;
 						//ActivePrintStatusText = ""; // set by slicer
@@ -881,7 +836,7 @@ namespace MatterHackers.MatterControl.ActionBar
 
 					case PrinterConnectionAndCommunication.CommunicationStates.Paused:
 						{
-							string activePrintLabelText = LocalizedString.Get("Printing Paused");
+							string activePrintLabelText = "Printing Paused".Localize();
 							string activePrintLabelTextFull = string.Format("{0}:", activePrintLabelText);
 							activePrintLabel.Text = activePrintLabelTextFull;
 							ActivePrintStatusText = totalPrintTimeText;
@@ -889,14 +844,14 @@ namespace MatterHackers.MatterControl.ActionBar
 						break;
 
 					case PrinterConnectionAndCommunication.CommunicationStates.FinishedPrint:
-						string donePrintingText = LocalizedString.Get("Done Printing");
+						string donePrintingText = "Done Printing".Localize();
 						string donePrintingTextFull = string.Format("{0}:", donePrintingText);
 						activePrintLabel.Text = donePrintingTextFull;
 						ActivePrintStatusText = totalPrintTimeText;
 						break;
 
 					default:
-						string nextPrintLabelActive = LocalizedString.Get("Next Print");
+						string nextPrintLabelActive = "Next Print".Localize();
 						string nextPrintLabelActiveFull = string.Format("{0}: ", nextPrintLabelActive);
 
 						activePrintLabel.Text = nextPrintLabelActiveFull;
@@ -906,11 +861,11 @@ namespace MatterHackers.MatterControl.ActionBar
 			}
 			else
 			{
-				string nextPrintLabel = LocalizedString.Get("Next Print");
+				string nextPrintLabel = "Next Print".Localize();
 				string nextPrintLabelFull = string.Format("{0}:", nextPrintLabel);
 
 				activePrintLabel.Text = nextPrintLabelFull;
-				ActivePrintStatusText = string.Format(LocalizedString.Get("Press 'Add' to choose an item to print"));
+				ActivePrintStatusText = string.Format("Press 'Add' to choose an item to print".Localize());
 			}
 		}
 	}

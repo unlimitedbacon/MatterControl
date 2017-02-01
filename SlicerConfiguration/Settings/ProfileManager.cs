@@ -29,156 +29,154 @@ either expressed or implied, of the FreeBSD Project.
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
+using MatterHackers.Agg;
 using MatterHackers.Agg.UI;
+using MatterHackers.MatterControl.DataStorage;
+using MatterHackers.MatterControl.SettingsManagement;
 using Newtonsoft.Json;
 
 namespace MatterHackers.MatterControl.SlicerConfiguration
 {
-	using System.Collections.ObjectModel;
-	using System.Threading.Tasks;
-	using Agg;
-	using DataStorage;
-	using Localizations;
-	using SettingsManagement;
-
 	public class ProfileManager
 	{
 		public static RootedObjectEventHandler ProfilesListChanged = new RootedObjectEventHandler();
 
-		public static ProfileManager Instance { get; set; }
-
-		public const string ProfileExtension = ".printer";
-		public const string ConfigFileExtension = ".slice";
-
-		private static object writeLock = new object();
-		private static EventHandler unregisterEvents;
-		private static readonly string userDataPath = ApplicationDataStorage.ApplicationUserDataPath;
-
-		/// <summary>
-		/// The user specific path to the Profiles directory
-		/// </summary>
-		private static string ProfilesPath
+		private static ProfileManager activeInstance = null;
+		public static ProfileManager Instance
 		{
 			get
 			{
-				// Determine username
-				string username = ApplicationController.Instance.GetSessionUsernameForFileSystem();
-				if (string.IsNullOrEmpty(username))
-				{
-					username = "guest";
-				}
-				else
-				{
-					username = ApplicationController.EnvironmentName + username;
-				}
-
-				string path = Path.Combine(userDataPath, "Profiles", username);
-
-				// Ensure directory exists
-				Directory.CreateDirectory(path);
-
-				return path;
+				return activeInstance;
 			}
-		}
-
-		private const string userDBExtension = ".profiles";
-		private const string guestDBFileName = "guest" + userDBExtension;
-
-		internal static string GuestDBDirectory => Path.Combine(userDataPath, "Profiles", "guest");
-		private static string GuestDBPath => Path.Combine(GuestDBDirectory, guestDBFileName);
-
-		internal static string ProfilesDBPath
-		{
-			get
+			private set
 			{
-				string username = ApplicationController.Instance.GetSessionUsernameForFileSystem();
-				if (string.IsNullOrEmpty(username))
-				{ 
-					username = GuestDBPath;
-				}
-				else
-				{
-					username = Path.Combine(ProfilesPath, $"{username}{userDBExtension}");
-				}
+				activeInstance = value;
 
-				return username;
-			}
-		}
-
-		static ProfileManager()
-		{
-			SliceSettingsWidget.SettingChanged.RegisterEvent(SettingsChanged, ref unregisterEvents);
-
-			// Ensure the profiles directory exists
-			Directory.CreateDirectory(ProfilesPath);
-
-			Reload();
-		}
-
-		public ProfileManager()
-		{
-		}
-
-		[JsonIgnore]
-		public bool IsGuestProfile => Path.GetFileName(ProfilesDBPath) == guestDBFileName;
-
-		public static void Reload()
-		{
-			if (Instance?.Profiles != null)
-			{
-				// Release event registration
-				Instance.Profiles.CollectionChanged -= Profiles_CollectionChanged;
-			}
-
-			// Load the profiles document
-			if (File.Exists(ProfilesDBPath))
-			{
-				string json = File.ReadAllText(ProfilesDBPath);
-				Instance = JsonConvert.DeserializeObject<ProfileManager>(json);
-			}
-			else
-			{
-				Instance = new ProfileManager();
-			}
-
-			if (ActiveSliceSettings.Instance?.ID != Instance.LastProfileID)
-			{
-				Task.Run(async () =>
+				// If the loaded slice settings do not match the last active settings for this profile, change to the last active
+				if (ActiveSliceSettings.Instance?.ID != activeInstance.LastProfileID)
 				{
 					// Load or download on a background thread
-					var lastProfile = await LoadProfileAsync(Instance.LastProfileID);
+					var lastProfile = LoadProfileAsync(activeInstance.LastProfileID).Result;
 
 					if (MatterControlApplication.IsLoading)
 					{
-						// Assign on the UI thread
-						ActiveSliceSettings.Instance = lastProfile ?? LoadEmptyProfile();
+						ActiveSliceSettings.Instance = lastProfile ?? PrinterSettings.Empty;
 					}
 					else
 					{
 						UiThread.RunOnIdle(() =>
 						{
 							// Assign on the UI thread
-							ActiveSliceSettings.Instance = lastProfile ?? LoadEmptyProfile();
+							ActiveSliceSettings.Instance = lastProfile ?? PrinterSettings.Empty;
 						});
 					}
-				});
+				}
+			}
+		}
+
+		private static EventHandler unregisterEvents;
+
+		public const string ProfileExtension = ".printer";
+		public const string ConfigFileExtension = ".slice";
+		public const string ProfileDocExtension = ".profiles";
+
+		private object writeLock = new object();
+
+		static ProfileManager()
+		{
+			ActiveSliceSettings.SettingChanged.RegisterEvent(SettingsChanged, ref unregisterEvents);
+			ReloadActiveUser();
+		}
+
+		public string UserName { get; set; }
+
+		/// <summary>
+		/// The user specific path to the Profiles directory
+		/// </summary>
+		[JsonIgnore]
+		private string UserProfilesDirectory => GetProfilesDirectoryForUser(this.UserName);
+
+		/// <summary>
+		/// The user specific path to the Profiles document
+		/// </summary>
+		[JsonIgnore]
+		public string ProfilesDocPath => GetProfilesDocPathForUser(this.UserName);
+
+		private static string GetProfilesDocPathForUser(string userName)
+		{
+			return Path.Combine(GetProfilesDirectoryForUser(userName), $"{userName}{ProfileDocExtension}");
+		}
+
+		private static string GetProfilesDirectoryForUser(string userName)
+		{
+			string userAndEnvName = (userName == "guest") ? userName : ApplicationController.EnvironmentName + userName;
+			string userProfilesDirectory = Path.Combine(ApplicationDataStorage.ApplicationUserDataPath, "Profiles", userAndEnvName);
+
+			// Ensure directory exists
+			Directory.CreateDirectory(userProfilesDirectory);
+
+			return userProfilesDirectory;
+		}
+
+		[JsonIgnore]
+		public bool IsGuestProfile => this.UserName == "guest";
+
+		/// <summary>
+		/// Updates ProfileManager.Instance to reflect the current authenticated/guest user
+		/// </summary>
+		public static void ReloadActiveUser()
+		{
+			string userName = AuthenticationData.Instance.FileSystemSafeUserName;
+			if (!string.IsNullOrEmpty(userName) && Instance?.UserName == userName)
+			{
+				// No work needed if user hasn't changed
+				return;
 			}
 
-			// In either case, wire up the CollectionChanged event
+			if (Instance?.Profiles != null)
+			{
+				// Release event registration
+				Instance.Profiles.CollectionChanged -= Profiles_CollectionChanged;
+			}
+
+			Instance = Load(userName);
+
+			// Wire up the CollectionChanged event
 			Instance.Profiles.CollectionChanged += Profiles_CollectionChanged;
 		}
 
-		internal static ProfileManager LoadGuestDB()
+		/// <summary>
+		/// Loads a ProfileManager for the given user
+		/// </summary>
+		/// <param name="userName">The user name to load</param>
+		public static ProfileManager Load(string userName)
 		{
-			if (File.Exists(GuestDBPath))
+			if (string.IsNullOrEmpty(userName))
 			{
-				string json = File.ReadAllText(GuestDBPath);
-				return JsonConvert.DeserializeObject<ProfileManager>(json);
+				userName = "guest";
 			}
 
-			return null;
+			string profilesDocPath = GetProfilesDocPathForUser(userName);
+
+			ProfileManager loadedInstance;
+
+			// Deserialize from disk or if missing, initialize a new instance
+			if (File.Exists(profilesDocPath))
+			{
+				string json = File.ReadAllText(profilesDocPath);
+				loadedInstance = JsonConvert.DeserializeObject<ProfileManager>(json);
+				loadedInstance.UserName = userName;
+			}
+			else
+			{
+				loadedInstance = new ProfileManager() { UserName = userName };
+			}
+
+			return loadedInstance;
 		}
 
 		internal static void SettingsChanged(object sender, EventArgs e)
@@ -198,7 +196,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 		}
 
-		public ObservableCollection<PrinterInfo> Profiles { get; set; } = new ObservableCollection<PrinterInfo>();
+		public ObservableCollection<PrinterInfo> Profiles { get; } = new ObservableCollection<PrinterInfo>();
 
 		[JsonIgnore]
 		public IEnumerable<PrinterInfo> ActiveProfiles => Profiles.Where(profile => !profile.MarkedForDelete).ToList();
@@ -214,48 +212,38 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 		}
 
-		public static PrinterSettings LoadEmptyProfile()
-		{
-			var emptyProfile = new PrinterSettings() { ID = "EmptyProfile" };
-			emptyProfile.UserLayer[SettingsKey.printer_name] = "Printers...".Localize();
-
-			return emptyProfile;
-		}
-
 		[JsonIgnore]
 		public string LastProfileID
 		{
 			get
 			{
-				string activeUserName = ApplicationController.Instance.GetSessionUsernameForFileSystem();
-				return UserSettings.Instance.get($"ActiveProfileID-{activeUserName}");
+				return UserSettings.Instance.get($"ActiveProfileID-{UserName}");
+			}
+			set
+			{
+				UserSettings.Instance.set($"ActiveProfileID-{UserName}", value);
 			}
 		}
 
+		/// <summary>
+		/// Indicates if given import has been run for the current user. For the guest profile, this means the
+		/// Sqlite import has been run and all db printers are now in the guest profile. For normal users
+		/// this means the CopyGuestProfilesToUser wizard has been completed and one or more printers were 
+		/// imported or the "Don't ask me again" option was selected
+		/// </summary>
 		public bool PrintersImported { get; set; } = false;
-
-		public PrinterSettings LoadLastProfileWithoutRecovery()
-		{
-			return LoadWithoutRecovery(this.LastProfileID);
-		}
-
-		public void SetLastProfile(string printerID)
-		{
-			string activeUserName = ApplicationController.Instance.GetSessionUsernameForFileSystem();
-			UserSettings.Instance.set($"ActiveProfileID-{activeUserName}", printerID);
-		}
-
-		public string ProfilePath(PrinterInfo printer)
-		{
-			return Path.Combine(ProfileManager.ProfilesPath, printer.ID + ProfileExtension);
-		}
 
 		public string ProfilePath(string printerID)
 		{
 			return ProfilePath(this[printerID]);
 		}
 
-		public static PrinterSettings LoadWithoutRecovery(string profileID)
+		public string ProfilePath(PrinterInfo printer)
+		{
+			return Path.Combine(UserProfilesDirectory, printer.ID + ProfileExtension);
+		}
+
+		public PrinterSettings LoadWithoutRecovery(string profileID)
 		{
 			var printerInfo = Instance[profileID];
 
@@ -291,14 +279,14 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 
 			// Only load profiles by ID that are defined in the profiles document
-			var printerInfo = ProfileManager.Instance[profileID];
+			var printerInfo = Instance[profileID];
 			if (printerInfo == null)
 			{
 				return null;
 			}
 
 			// Attempt to load from disk, pull from the web or fall back using recovery logic
-			PrinterSettings printerSettings = LoadWithoutRecovery(profileID);
+			PrinterSettings printerSettings = Instance.LoadWithoutRecovery(profileID);
 			if (printerSettings != null)
 			{
 				return printerSettings;
@@ -444,33 +432,8 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 			printerSettings.UserLayer[SettingsKey.printer_name.ToString()] = printerName;
 
-			// Import named macros as defined in the following printers: (Airwolf Axiom, HD, HD-R, HD2x, HDL, HDx, Me3D Me2, Robo R1[+])
-			var classicDefaultMacros = printerSettings.GetValue("default_macros");
-			if (!string.IsNullOrEmpty(classicDefaultMacros))
-			{
-				var namedMacros = new Dictionary<string, string>();
-				namedMacros["Lights On"] = "M42 P6 S255";
-				namedMacros["Lights Off"] = "M42 P6 S0";
-				namedMacros["Offset 0.8"] = "M565 Z0.8;\nM500";
-				namedMacros["Offset 0.9"] = "M565 Z0.9;\nM500";
-				namedMacros["Offset 1"] = "M565 Z1;\nM500";
-				namedMacros["Offset 1.1"] = "M565 Z1.1;\nM500";
-				namedMacros["Offset 1.2"] = "M565 Z1.2;\nM500";
-				namedMacros["Z Offset"] = "G1 Z10;\nG28;\nG29;\nG1 Z10;\nG1 X5 Y5 F4000;\nM117;";
-
-				foreach (string namedMacro in classicDefaultMacros.Split(','))
-				{
-					string gcode;
-					if (namedMacros.TryGetValue(namedMacro.Trim(), out gcode))
-					{
-						printerSettings.Macros.Add(new GCodeMacro()
-						{
-							Name = namedMacro.Trim(),
-							GCode = gcode
-						});
-					}
-				}
-			}
+			//If the active printer has no theme we set it to the current theme color
+			printerSettings.UserLayer[SettingsKey.active_theme_name] = ActiveTheme.Instance.Name;
 
 			// Add to Profiles - fires ProfileManager.Save due to ObservableCollection event listener
 			Instance.Profiles.Add(new PrinterInfo
@@ -485,7 +448,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			printerSettings.Save();
 
 			// Set as active profile
-			UserSettings.Instance.set("ActiveProfileID", guid);
+			ProfileManager.Instance.LastProfileID = guid;
 
 			ActiveSliceSettings.Instance = printerSettings;
 
@@ -550,7 +513,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			if (IsGuestProfile && !PrintersImported)
 			{
 				// Import Sqlite printer profiles into local json files
-				DataStorage.ClassicDB.ClassicSqlitePrinterProfiles.ImportPrinters(Instance, ProfilesPath);
+				DataStorage.ClassicDB.ClassicSqlitePrinterProfiles.ImportPrinters(Instance, UserProfilesDirectory);
 				PrintersImported = true;
 				Save();
 			}
@@ -564,14 +527,14 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			ProfilesListChanged.CallEvents(null, null);
 
 			// Force sync after any collection change event
-			ApplicationController.SyncPrinterProfiles(null);
+			ApplicationController.SyncPrinterProfiles?.Invoke("ProfileManager.Profiles_CollectionChanged()", null);
 		}
 
 		public void Save()
 		{
 			lock(writeLock)
 			{
-				File.WriteAllText(ProfilesDBPath, JsonConvert.SerializeObject(this, Formatting.Indented));
+				File.WriteAllText(ProfilesDocPath, JsonConvert.SerializeObject(this, Formatting.Indented));
 			}
 		}
 	}

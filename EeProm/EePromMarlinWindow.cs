@@ -73,7 +73,7 @@ namespace MatterHackers.MatterControl.EeProm
 		private MHNumberEdit maxXYJerk;
 		private MHNumberEdit maxZJerk;
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		private TextImageButtonFactory textImageButtonFactory = new TextImageButtonFactory();
 		private double maxWidthOfLeftStuff = 0;
@@ -209,7 +209,7 @@ namespace MatterHackers.MatterControl.EeProm
 						UiThread.RunOnIdle(() =>
 						{
 							FileDialog.OpenFileDialog(
-								new OpenFileDialogParams("EEPROM Settings" + "|*.ini")
+								new OpenFileDialogParams("EEPROM Settings|*.ini")
 								{
 									ActionButtonLabel = "Import EEPROM Settings".Localize(),
 									Title = "Import EEPROM".Localize(),
@@ -237,7 +237,7 @@ namespace MatterHackers.MatterControl.EeProm
 						{
 							string defaultFileNameNoPath = "eeprom_settings.ini";
                             FileDialog.SaveFileDialog(
-								new SaveFileDialogParams("EEPROM Settings" + "|*.ini")
+								new SaveFileDialogParams("EEPROM Settings|*.ini")
 								{
 									ActionButtonLabel = "Export EEPROM Settings".Localize(),
 									Title = "Export EEPROM".Localize(),
@@ -266,11 +266,7 @@ namespace MatterHackers.MatterControl.EeProm
 
 			PrinterConnectionAndCommunication.Instance.CommunicationUnconditionalFromPrinter.RegisterEvent(currentEePromSettings.Add, ref unregisterEvents);
 
-#if __ANDROID__
-			this.AddChild(new SoftKeyboardContentOffset(mainContainer));
-#else
 			AddChild(mainContainer);
-#endif
 
 			ShowAsSystemWindow();
 

@@ -39,7 +39,7 @@ namespace MatterHackers.MatterControl
 {
 	public class AndroidConnectDevicePage : WizardPage
 	{  
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		private TextWidget generalError;
 
@@ -80,10 +80,10 @@ namespace MatterHackers.MatterControl
 			//Construct buttons
 			connectButton = whiteImageButtonFactory.Generate("Connect".Localize(),centerText:true);
 			connectButton.Margin = new BorderDouble(0,0,10,0);
-			connectButton.Click += new EventHandler(ConnectButton_Click);
+			connectButton.Click += ConnectButton_Click;
 
 			skipButton = whiteImageButtonFactory.Generate("Skip".Localize(), centerText:true);
-			skipButton.Click += new EventHandler(NextButton_Click);
+			skipButton.Click += NextButton_Click;
 
 			connectButtonContainer.AddChild(connectButton);
 			connectButtonContainer.AddChild(skipButton);
@@ -109,7 +109,7 @@ namespace MatterHackers.MatterControl
 
 			//Construct buttons
 			troubleshootButton = whiteImageButtonFactory.Generate("Troubleshoot".Localize(), centerText:true);
-			troubleshootButton.Click += (s, e) => WizardWindow.ChangeToPage<SetupWizardTroubleshooting>();
+			troubleshootButton.Click += (s, e) => UiThread.RunOnIdle(WizardWindow.ChangeToPage<SetupWizardTroubleshooting>);
 
 			retryButtonContainer = new FlowLayoutWidget()
 			{

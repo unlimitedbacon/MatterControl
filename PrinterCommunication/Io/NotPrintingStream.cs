@@ -27,52 +27,34 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the FreeBSD Project.
 */
 
-using MatterHackers.Agg;
-using MatterHackers.Agg.UI;
 using System;
+using MatterHackers.Agg;
+using MatterHackers.GCodeVisualizer;
+using MatterHackers.VectorMath;
+using System.Text;
+using System.Collections.Generic;
+using System.Threading;
 
-namespace MatterHackers.MatterControl
+namespace MatterHackers.MatterControl.PrinterCommunication.Io
 {
-	public class SolidProgressControl : GuiWidget
+	public class NotPrintingStream : GCodeStream
 	{
-		public EventHandler ProgressChanged;
-		private int percentComplete;
-		public RGBA_Bytes fillColor;
-		public RGBA_Bytes borderColor;
-
-		public int PercentComplete
+		public NotPrintingStream()
 		{
-			get { return percentComplete; }
-			set
-			{
-				if (value != percentComplete)
-				{
-					if (ProgressChanged != null)
-					{
-						ProgressChanged(this, null);
-					}
-					percentComplete = value;
-					Invalidate();
-				}
-			}
 		}
 
-		public SolidProgressControl(int width = 80, int height = 15)
-			: base(width, height)
+		public override void Dispose()
 		{
-			this.fillColor = ActiveTheme.Instance.PrimaryAccentColor;
-			this.borderColor = ActiveTheme.Instance.PrimaryTextColor;
-
-			this.AfterDraw += new DrawEventHandler(bar_Draw);
 		}
 
-		private void bar_Draw(GuiWidget drawingWidget, DrawEventArgs drawEvent)
+		public override string ReadLine()
 		{
-			if (drawingWidget != null && drawEvent != null && drawEvent.graphics2D != null)
-			{
-				drawEvent.graphics2D.FillRectangle(0, 0, drawingWidget.Width * PercentComplete / 100.0, drawingWidget.Height, fillColor);
-				drawEvent.graphics2D.Rectangle(drawingWidget.LocalBounds, borderColor);
-			}
+			Thread.Sleep(100);
+			return "";
+		}
+
+		public override void SetPrinterPosition(PrinterMove position)
+		{
 		}
 	}
 }

@@ -23,7 +23,7 @@ namespace MatterHackers.MatterControl.SetupWizard
 			contentRow.AddChild(syncingDetails);
 			Progress<SyncReportType> progress = new Progress<SyncReportType>(ReportProgress);
 
-			ApplicationController.SyncPrinterProfiles(progress).ContinueWith((task) =>
+			ApplicationController.SyncPrinterProfiles("SyncingPrintersPage.ctor()", progress).ContinueWith((task) =>
 			{
 				if (!ProfileManager.Instance.ActiveProfiles.Any())
 				{
@@ -34,8 +34,13 @@ namespace MatterHackers.MatterControl.SetupWizard
 				{
 					//Set as active printer
 					ActiveSliceSettings.SwitchToProfile(ProfileManager.Instance.ActiveProfiles.First().ID);
+					// only close the window if we are not switching to the setup printer form
+					UiThread.RunOnIdle(WizardWindow.Close);
 				}
-				UiThread.RunOnIdle(WizardWindow.Close);
+				else // multiple printers - close the window
+				{
+					UiThread.RunOnIdle(WizardWindow.Close);
+				}
 			});
 			footerRow.AddChild(new HorizontalSpacer());
 			footerRow.AddChild(cancelButton);

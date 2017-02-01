@@ -373,7 +373,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 						{
 							if (saveButtons.Visible)
 							{
-								StyledMessageBox.ShowMessageBox(ExitEditingAndSaveIfRequired, "Would you like to save your changes before exiting the editor?".Localize(), "Save Changes".Localize(), StyledMessageBox.MessageType.YES_NO);
+								StyledMessageBox.ShowMessageBox(ExitEditingAndSaveIfRequired, "Would you like to save your changes before exiting the editor?".Localize(), "Save Changes".Localize(), StyledMessageBox.MessageType.YES_NO, "Save Changed".Localize(), "Discard Changes".Localize());
 							}
 							else
 							{
@@ -1178,7 +1178,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 			TextWidget centeredX = new TextWidget("X", pointSize: 10, textColor: ActiveTheme.Instance.PrimaryTextColor); centeredX.Margin = new BorderDouble(3, 0, 0, 0); centeredX.AnchorCenter(); rotateXButton.AddChild(centeredX);
 			rotateButtonContainer.AddChild(rotateXButton);
 			rotateControls.Add(rotateXButton);
-			rotateXButton.Click += (object sender, EventArgs mouseEvent) =>
+			rotateXButton.Click += (s, e) =>
 			{
 				if (SelectedMeshGroupIndex != -1)
 				{
@@ -1197,7 +1197,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 			TextWidget centeredY = new TextWidget("Y", pointSize: 10, textColor: ActiveTheme.Instance.PrimaryTextColor); centeredY.Margin = new BorderDouble(3, 0, 0, 0); centeredY.AnchorCenter(); rotateYButton.AddChild(centeredY);
 			rotateButtonContainer.AddChild(rotateYButton);
 			rotateControls.Add(rotateYButton);
-			rotateYButton.Click += (object sender, EventArgs mouseEvent) =>
+			rotateYButton.Click += (s, e) =>
 			{
 				if (SelectedMeshGroupIndex != -1)
 				{
@@ -1216,7 +1216,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 			TextWidget centeredZ = new TextWidget("Z", pointSize: 10, textColor: ActiveTheme.Instance.PrimaryTextColor); centeredZ.Margin = new BorderDouble(3, 0, 0, 0); centeredZ.AnchorCenter(); rotateZButton.AddChild(centeredZ);
 			rotateButtonContainer.AddChild(rotateZButton);
 			rotateControls.Add(rotateZButton);
-			rotateZButton.Click += (object sender, EventArgs mouseEvent) =>
+			rotateZButton.Click += (s, e) =>
 			{
 				if (SelectedMeshGroupIndex != -1)
 				{
@@ -1237,7 +1237,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 			layFlatButton.Cursor = Cursors.Hand;
 			buttonPanel.AddChild(layFlatButton);
 
-			layFlatButton.Click += (object sender, EventArgs mouseEvent) =>
+			layFlatButton.Click += (s, e) =>
 			{
 				if (SelectedMeshGroupIndex != -1)
 				{
@@ -1349,7 +1349,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 			{
 				// remove it first to make sure we don't double add it
 				PrintItemWrapper.FileHasChanged.UnregisterEvent(ReloadMeshIfChangeExternaly, ref unregisterEvents);
-				PrintItemWrapper.FileHasChanged.RegisterEvent(ReloadMeshIfChangeExternaly, ref unregisterEvents); ;
+				PrintItemWrapper.FileHasChanged.RegisterEvent(ReloadMeshIfChangeExternaly, ref unregisterEvents);
 
 				// don't load the mesh until we get all the rest of the interface built
 				meshViewerWidget.LoadDone += new EventHandler(meshViewerWidget_LoadDone);
@@ -2315,6 +2315,11 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 						break;
 				}
 			}
+		}
+
+		public override bool InEditMode
+		{
+			get { return buttonRightPanel.Visible; }
 		}
 
 		private void SwitchStateToNotEditing()

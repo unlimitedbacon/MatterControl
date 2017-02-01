@@ -44,12 +44,6 @@ using System.Threading.Tasks;
 
 namespace MatterHackers.MatterControl.PrintLibrary
 {
-
-	public interface IClickable
-	{
-		event EventHandler Click;
-	}
-
 	public class LibraryRowItemPart : LibraryRowItem
 	{
 		public bool isActivePrint = false;
@@ -64,7 +58,7 @@ namespace MatterHackers.MatterControl.PrintLibrary
 			: base(libraryDataView, thumbnailWidget)
 		{
 			thumbnailWidth = thumbnailWidget.Width;
-			var widget = thumbnailWidget as IClickable;
+			var widget = thumbnailWidget;
 			if (widget != null)
 			{
 				widget.Click += onViewPartClick;
@@ -436,7 +430,7 @@ namespace MatterHackers.MatterControl.PrintLibrary
 				else
 				{
 					string message = String.Format("Cannot find\n'{0}'.\nWould you like to remove it from the library?", pathAndFile);
-					StyledMessageBox.ShowMessageBox(null, message, "Item not found", StyledMessageBox.MessageType.YES_NO);
+					StyledMessageBox.ShowMessageBox(null, message, "Item not found", StyledMessageBox.MessageType.YES_NO, "Remove".Localize(), "Cancel".Localize());
 				}
 			}
 		}
@@ -462,14 +456,7 @@ namespace MatterHackers.MatterControl.PrintLibrary
 		{
 			//this.VAnchor = Agg.UI.VAnchor.FitToChildren;
 			this.HAnchor = Agg.UI.HAnchor.ParentLeftRight;
-			if (UserSettings.Instance.DisplayMode == ApplicationDisplayType.Touchscreen)
-			{
-				this.Height = 65;
-			}
-			else
-			{
-				this.Height = 50;
-			}
+			this.Height = 50 * GuiWidget.DeviceScale;
 
 			this.Padding = new BorderDouble(0);
 			this.Margin = new BorderDouble(6, 0, 6, 6);

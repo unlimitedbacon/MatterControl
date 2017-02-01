@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MatterHackers.Localizations;
 
 namespace MatterHackers.MatterControl.SetupWizard
 {
@@ -19,7 +20,7 @@ namespace MatterHackers.MatterControl.SetupWizard
 		ScrollableWidget scrollWindow;
 
 		public PrinterProfileHistoryPage()
-			: base(unlocalizedTextForTitle: "Settings History")
+			: base(unlocalizedTextForTitle: "Restore Settings")
 		{
 			scrollWindow = new ScrollableWidget()
 			{
@@ -31,7 +32,7 @@ namespace MatterHackers.MatterControl.SetupWizard
 			contentRow.FlowDirection = FlowDirection.TopToBottom;
 			contentRow.AddChild(scrollWindow);
 
-			var revertButton = textImageButtonFactory.Generate("Revert");
+			var revertButton = textImageButtonFactory.Generate("Restore".Localize());
 			footerRow.AddChild(revertButton);
 			footerRow.AddChild(new HorizontalSpacer());
 			footerRow.AddChild(cancelButton);
@@ -69,7 +70,7 @@ namespace MatterHackers.MatterControl.SetupWizard
 			loadingText.TextColor = ActiveTheme.Instance.PrimaryTextColor;
 			scrollWindow.AddChild(loadingText);
 
-			var results = await ApplicationController.GetProfileHistory(ProfileManager.Instance.ActiveProfile.DeviceToken);
+			var results = await ApplicationController.GetProfileHistory?.Invoke(ProfileManager.Instance.ActiveProfile.DeviceToken);
 			printerProfileData = results;
 			if(printerProfileData != null)
 			{

@@ -38,6 +38,7 @@ using MatterHackers.MatterControl.PrinterCommunication;
 using MatterHackers.VectorMath;
 using Newtonsoft.Json;
 using MatterHackers.Agg.PlatformAbstract;
+using System.Runtime.Serialization;
 
 namespace MatterHackers.MatterControl.SlicerConfiguration
 {
@@ -45,6 +46,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 	{
 		public const string active_theme_name = nameof(active_theme_name);
 		public const string auto_connect = nameof(auto_connect);
+		public const string baby_step_z_offset = nameof(baby_step_z_offset);
 		public const string baud_rate = nameof(baud_rate);
 		public const string bed_remove_part_temperature = nameof(bed_remove_part_temperature);
 		public const string bed_shape = nameof(bed_shape);
@@ -61,8 +63,10 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		public const string device_token = nameof(device_token);
 		public const string device_type = nameof(device_type);
 		public const string expand_thin_walls = nameof(expand_thin_walls);
+		public const string merge_overlapping_lines = nameof(merge_overlapping_lines);
 		public const string extruder_count = nameof(extruder_count);
 		public const string extruders_share_temperature = nameof(extruders_share_temperature);
+		public const string external_perimeter_extrusion_width = nameof(external_perimeter_extrusion_width);
 		public const string filament_cost = nameof(filament_cost);
 		public const string filament_density = nameof(filament_density);
 		public const string filament_diameter = nameof(filament_diameter);
@@ -91,6 +95,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		public const string print_center = nameof(print_center);
 		public const string print_leveling_data = nameof(print_leveling_data);
 		public const string print_leveling_enabled = nameof(print_leveling_enabled);
+		public const string print_leveling_probe_start = nameof(print_leveling_probe_start);
 		public const string print_leveling_required_to_print = nameof(print_leveling_required_to_print);
 		public const string printer_name = nameof(printer_name);
 		public const string publish_bed_image = nameof(publish_bed_image);
@@ -103,9 +108,14 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		public const string start_gcode = nameof(start_gcode);
 		public const string temperature = nameof(temperature);
 		public const string windows_driver = nameof(windows_driver);
+		public const string z_can_be_negative = nameof(z_can_be_negative);
 		public const string z_homes_to_max = nameof(z_homes_to_max);
-		public const string printer_z_after_home = nameof(printer_z_after_home);
-		public const string z_offset_after_home = nameof(z_offset_after_home);
+		public const string enable_sailfish_communication = nameof(enable_sailfish_communication);
+		public const string enable_network_printing = nameof(enable_network_printing);
+		public const string ip_address = nameof(ip_address);
+		public const string ip_port = nameof(ip_port);
+		public const string first_layer_speed = nameof(first_layer_speed);
+		public const string active_quality_key = nameof(active_quality_key);
 	}
 
 	public class SettingsHelpers
@@ -119,7 +129,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 		public double ExtruderTemperature(int extruderIndex)
 		{
-			if(extruderIndex == 0)
+			if (extruderIndex == 0)
 			{
 				return printerSettings.GetValue<double>(SettingsKey.temperature);
 			}
@@ -138,7 +148,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 						if (layer.TryGetValue(SettingsKey.temperature, out result))
 						{
 							double value = 0;
-							if(double.TryParse(result, out value))
+							if (double.TryParse(result, out value))
 							{
 								return value;
 							}
@@ -186,17 +196,17 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 
 			// Clear selected printer state
-			UserSettings.Instance.set("ActiveProfileID", "");
+			ProfileManager.Instance.LastProfileID = "";
 
 			UiThread.RunOnIdle(() =>
 			{
-				ActiveSliceSettings.Instance = ProfileManager.LoadEmptyProfile();
+				ActiveSliceSettings.Instance = PrinterSettings.Empty;
 
 				// Notify listeners of a ProfileListChange event due to this printers removal
 				ProfileManager.ProfilesListChanged.CallEvents(this, null);
 
 				// Force sync after marking for delete
-				ApplicationController.SyncPrinterProfiles(null);
+				ApplicationController.SyncPrinterProfiles("SettingsHelpers.SetMarkedForDelete()", null);
 			});
 		}
 
@@ -287,11 +297,19 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 			printerSettings.SetValue(SettingsKey.print_leveling_enabled, doLeveling ? "1" : "0");
 
-			PrinterSettings.PrintLevelingEnabledChanged?.CallEvents(this, null);
-
 			if (doLeveling)
 			{
-				PrintLevelingData levelingData = ActiveSliceSettings.Instance.Helpers.GetPrintLevelingData();
+				UpdateLevelSettings();
+			}
+
+			PrinterSettings.PrintLevelingEnabledChanged?.CallEvents(this, null);
+		}
+
+		public void UpdateLevelSettings()
+		{
+			PrintLevelingData levelingData = ActiveSliceSettings.Instance.Helpers.GetPrintLevelingData();
+			if (levelingData.SampledPositions.Count > 2)
+			{
 				PrintLevelingPlane.Instance.SetPrintLevelingEquation(
 					levelingData.SampledPositions[0],
 					levelingData.SampledPositions[1],
@@ -373,9 +391,18 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			},
 			(saveParams) =>
 			{
-				if (!string.IsNullOrWhiteSpace(saveParams.FileName))
+				try
 				{
-					File.WriteAllText(saveParams.FileName, JsonConvert.SerializeObject(printerSettings, Formatting.Indented));
+					if (!string.IsNullOrWhiteSpace(saveParams.FileName))
+					{
+						File.WriteAllText(saveParams.FileName, JsonConvert.SerializeObject(printerSettings, Formatting.Indented));
+					}
+				}
+				catch (Exception e)
+				{
+					UiThread.RunOnIdle (() => {
+						StyledMessageBox.ShowMessageBox(null, e.Message, "Couldn't save file".Localize());
+					});
 				}
 			});
 		}
@@ -389,29 +416,20 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				},
 				(saveParams) =>
 				{
-					if (!string.IsNullOrWhiteSpace(saveParams.FileName))
+					try
 					{
-						GenerateConfigFile(saveParams.FileName, false);
+						if (!string.IsNullOrWhiteSpace(saveParams.FileName))
+						{
+							Slic3rEngineMappings.WriteSliceSettingsFile(saveParams.FileName);
+						}
+					}
+					catch (Exception e)
+					{
+						UiThread.RunOnIdle (() => {
+							StyledMessageBox.ShowMessageBox(null, e.Message, "Couldn't save file".Localize());
+						});
 					}
 				});
-		}
-
-		public void GenerateConfigFile(string fileName, bool replaceMacroValues)
-		{
-			using (var outstream = new StreamWriter(fileName))
-			{
-				// TODO: No longer valid to check for leading MatterControl. token
-				foreach (var key in PrinterSettings.KnownSettings.Where(k => !k.StartsWith("MatterControl.")))
-				{
-					string activeValue = printerSettings.GetValue(key);
-					if (replaceMacroValues)
-					{
-						activeValue = GCodeProcessing.ReplaceMacroValues(activeValue);
-					}
-					outstream.Write(string.Format("{0} = {1}\n", key, activeValue));
-					activeValue = GCodeProcessing.ReplaceMacroValues(activeValue);
-				}
-			}
 		}
 
 		public void ExportAsCuraConfig()
@@ -463,6 +481,15 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			return presets;
 		}
 
+		public int NumberOfHotEnds()
+		{
+			if (ActiveSliceSettings.Instance.GetValue<bool>(SettingsKey.extruders_share_temperature))
+			{
+				return 1;
+			}
+
+			return ActiveSliceSettings.Instance.GetValue<int>(SettingsKey.extruder_count);
+		}
 	}
 
 	public class PrinterInfo
@@ -515,6 +542,20 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		public bool MarkedForDelete { get; set; } = false;
 		public string ContentSHA1 { get; set; }
 		public string ServerSHA1 { get; set; }
+
+		[OnDeserialized]
+		public void OnDeserialized(StreamingContext context)
+		{
+			if (string.IsNullOrEmpty(this.Make))
+			{
+				this.Make = "Other";
+			}
+
+			if (string.IsNullOrEmpty(this.Model))
+			{
+				this.Model = "Other";
+			}
+		}
 
 		[JsonIgnore]
 		public string ProfilePath => ProfileManager.Instance.ProfilePath(this);

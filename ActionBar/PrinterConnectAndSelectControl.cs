@@ -46,13 +46,13 @@ namespace MatterHackers.MatterControl.ActionBar
 		private TextImageButtonFactory actionBarButtonFactory = new TextImageButtonFactory();
 		private Button connectPrinterButton;
 		private Button editPrinterButton;
-		private string disconnectAndCancelMessage = "Disconnect and cancel the current print?".Localize();
-		private string disconnectAndCancelTitle = "WARNING: Disconnecting will cancel the print".Localize();
+		private string disconnectAndCancelTitle = "Disconnect and stop the current print?".Localize();
+		private string disconnectAndCancelMessage = "WARNING: Disconnecting will stop the current print.\n\nAre you sure you want to disconnect?".Localize();
 		private Button disconnectPrinterButton;
 		private PrinterSelector printerSelector;
 		GuiWidget printerSelectorAndEditOverlay;
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 		static EventHandler staticUnregisterEvents;
 
 		public PrinterConnectAndSelectControl()
@@ -118,9 +118,9 @@ namespace MatterHackers.MatterControl.ActionBar
 				};
 
 				disconnectPrinterButton = actionBarButtonFactory.Generate("Disconnect".Localize().ToUpper(), "icon_power_32x32.png");
+				disconnectPrinterButton.Name = "Disconnect from printer button";
 				disconnectPrinterButton.ToolTipText = "Disconnect from current printer".Localize();
 				disconnectPrinterButton.Margin = new BorderDouble(6, 0, 3, 3);
-
 				disconnectPrinterButton.VAnchor = VAnchor.ParentTop;
 				disconnectPrinterButton.Cursor = Cursors.Hand;
 				disconnectPrinterButton.Click += (s, e) => UiThread.RunOnIdle(OnIdleDisconnect);
@@ -180,10 +180,10 @@ namespace MatterHackers.MatterControl.ActionBar
 				resetConnectionButton.Margin = new BorderDouble(6, 0, 3, 3);
 				this.AddChild(resetConnectionButton);
 
-				resetConnectionButton.Click += new EventHandler((s,e) => PrinterConnectionAndCommunication.Instance.RebootBoard());
+				resetConnectionButton.Click += (s, e) => PrinterConnectionAndCommunication.Instance.RebootBoard();
 				resetConnectionButton.Visible = ActiveSliceSettings.Instance.GetValue<bool>(SettingsKey.show_reset_connection);
 
-				SliceSettingsWidget.SettingChanged.RegisterEvent((sender, e) => 
+				ActiveSliceSettings.SettingChanged.RegisterEvent((sender, e) => 
 				{
 					StringEventArgs stringEvent = e as StringEventArgs;
 					if (stringEvent != null)
@@ -199,7 +199,6 @@ namespace MatterHackers.MatterControl.ActionBar
 			// Bind connect button states to active printer state
 			this.SetConnectionButtonVisibleState();
 
-			ActiveSliceSettings.ActivePrinterChanged.RegisterEvent(onActivePrinterChanged, ref unregisterEvents);
 			PrinterConnectionAndCommunication.Instance.EnableChanged.RegisterEvent(onPrinterStatusChanged, ref unregisterEvents);
 			PrinterConnectionAndCommunication.Instance.CommunicationStateChanged.RegisterEvent(onPrinterStatusChanged, ref unregisterEvents);
 		}
@@ -215,17 +214,11 @@ namespace MatterHackers.MatterControl.ActionBar
 			PrinterConnectionAndCommunication.Instance.ConnectToActivePrinter(true);
 		}
 
-		private void onActivePrinterChanged(object sender, EventArgs e)
-		{
-			connectPrinterButton.Enabled = ActiveSliceSettings.Instance.PrinterSelected;
-			editPrinterButton.Enabled = ActiveSliceSettings.Instance.PrinterSelected;
-		}
-
 		private void onConfirmStopPrint(bool messageBoxResponse)
 		{
 			if (messageBoxResponse)
 			{
-				PrinterConnectionAndCommunication.Instance.Stop();
+				PrinterConnectionAndCommunication.Instance.Stop(false);
 				PrinterConnectionAndCommunication.Instance.Disable();
 				printerSelector.Invalidate();
 			}
@@ -235,7 +228,7 @@ namespace MatterHackers.MatterControl.ActionBar
 		{
 			if (PrinterConnectionAndCommunication.Instance.PrinterIsPrinting)
 			{
-				StyledMessageBox.ShowMessageBox(onConfirmStopPrint, disconnectAndCancelMessage, disconnectAndCancelTitle, StyledMessageBox.MessageType.YES_NO);
+				StyledMessageBox.ShowMessageBox(onConfirmStopPrint, disconnectAndCancelMessage, disconnectAndCancelTitle, StyledMessageBox.MessageType.YES_NO, "Disconnect".Localize(), "Stay Connected".Localize());
 			}
 			else
 			{

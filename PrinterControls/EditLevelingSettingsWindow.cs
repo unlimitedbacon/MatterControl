@@ -103,7 +103,7 @@ namespace MatterHackers.MatterControl
 				leftRightEdit.HAnchor |= Agg.UI.HAnchor.ParentLeftRight;
 				TextWidget positionLabel;
 
-				string whichPositionText = LocalizedString.Get("Position");
+				string whichPositionText = "Position".Localize();
 				positionLabel = new TextWidget("{0} {1,-5}".FormatWith(whichPositionText, row + 1), textColor: ActiveTheme.Instance.PrimaryTextColor);
 
 				positionLabel.VAnchor = VAnchor.ParentCenter;
@@ -146,7 +146,22 @@ namespace MatterHackers.MatterControl
 			MinimumSize = new Vector2(Width, Height);
 
 			Button savePresetsButton = textImageButtonFactory.Generate("Save".Localize());
-			savePresetsButton.Click += new EventHandler(save_Click);
+			savePresetsButton.Click += (s,e) =>
+			{
+				UiThread.RunOnIdle(() =>
+				{
+					PrintLevelingData newLevelingData = ActiveSliceSettings.Instance.Helpers.GetPrintLevelingData();
+
+					for (int i = 0; i < newLevelingData.SampledPositions.Count; i++)
+					{
+						newLevelingData.SampledPositions[i] = positions[i];
+					}
+
+					ActiveSliceSettings.Instance.Helpers.SetPrintLevelingData(newLevelingData);
+					ActiveSliceSettings.Instance.Helpers.UpdateLevelSettings();
+					Close();
+				});
+			};
 
 			Button cancelPresetsButton = textImageButtonFactory.Generate("Cancel".Localize());
 			cancelPresetsButton.Click += (sender, e) =>
@@ -168,25 +183,6 @@ namespace MatterHackers.MatterControl
 			topToBottom.AddChild(buttonRow);
 
 			AddChild(topToBottom);
-		}
-
-		private void save_Click(object sender, EventArgs mouseEvent)
-		{
-			UiThread.RunOnIdle(DoSave_Click);
-		}
-
-		private void DoSave_Click()
-		{
-			PrintLevelingData levelingData = ActiveSliceSettings.Instance.Helpers.GetPrintLevelingData();
-
-			for (int i = 0; i < levelingData.SampledPositions.Count; i++)
-			{
-				levelingData.SampledPositions[i] = positions[i];
-			}
-
-			ActiveSliceSettings.Instance.Helpers.SetPrintLevelingData(levelingData);
-
-			Close();
 		}
 	}
 }

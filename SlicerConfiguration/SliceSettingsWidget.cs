@@ -51,14 +51,14 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			this.AnchorAll();
 			this.Padding = new BorderDouble(3, 0);
 
-			var noConnectionMessageContainer = new AltGroupBox(new TextWidget(LocalizedString.Get("No Printer Selected"), pointSize: 18, textColor: ActiveTheme.Instance.SecondaryAccentColor));
+			var noConnectionMessageContainer = new AltGroupBox(new TextWidget("No Printer Selected".Localize(), pointSize: 18, textColor: ActiveTheme.Instance.SecondaryAccentColor));
 			noConnectionMessageContainer.Margin = new BorderDouble(top: 10);
 			noConnectionMessageContainer.BorderColor = ActiveTheme.Instance.PrimaryTextColor;
 			noConnectionMessageContainer.HAnchor = Agg.UI.HAnchor.ParentLeftRight;
 			noConnectionMessageContainer.Height = 90;
 
-			string noConnectionString = LocalizedString.Get("No printer is currently selected. Please select a printer to edit slice settings.");
-			noConnectionString += "\n\n" + LocalizedString.Get("NOTE: You need to select a printer, but do not need to connect to it.");
+			string noConnectionString = "No printer is currently selected. Please select a printer to edit slice settings.".Localize();
+			noConnectionString += "\n\n" + "NOTE: You need to select a printer, but do not need to connect to it.".Localize();
 			TextWidget noConnectionMessage = new TextWidget(noConnectionString, pointSize: 10);
 			noConnectionMessage.Margin = new BorderDouble(5);
 			noConnectionMessage.TextColor = ActiveTheme.Instance.PrimaryTextColor;
@@ -84,6 +84,27 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		private PrinterSettingsLayer persistenceLayer = null;
 
 		private NamedSettingsLayers viewFilter;
+
+		internal static ImageBuffer restoreNormal;
+		internal static ImageBuffer restoreHover;
+		internal static ImageBuffer restorePressed;
+
+		static SliceSettingsWidget()
+		{
+			// EnsureRestoreButtonImages
+			int size = (int)(16 * GuiWidget.DeviceScale);
+
+			if (OsInformation.OperatingSystem == OSType.Android)
+			{
+				restoreNormal = ColorCircle(size, new RGBA_Bytes(200, 0, 0));
+			}
+			else
+			{
+				restoreNormal = ColorCircle(size, new RGBA_Bytes(128, 128, 128));
+			}
+			restoreHover = ColorCircle(size, new RGBA_Bytes(200, 0, 0));
+			restorePressed = ColorCircle(size, new RGBA_Bytes(255, 0, 0));
+		}
 
 		public SliceSettingsWidget(List<PrinterSettingsLayer> layerCascade = null, NamedSettingsLayers viewFilter = NamedSettingsLayers.All)
 		{
@@ -205,7 +226,10 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 
 			pageTopToBottomLayout.AddChild(topCategoryTabs);
-			AddHandlers();
+
+			PrinterConnectionAndCommunication.Instance.CommunicationStateChanged.RegisterEvent(onPrinterStatusChanged, ref unregisterEvents);
+			PrinterConnectionAndCommunication.Instance.EnableChanged.RegisterEvent(onPrinterStatusChanged, ref unregisterEvents);
+
 			SetVisibleControls();
 
 			// Make sure we are on the right tab when we create this view
@@ -240,6 +264,17 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				}
 
 				return "Simple";
+			}
+		}
+
+		private bool showControlBar = true;
+		public bool ShowControlBar
+		{
+			get { return showControlBar; }
+			set
+			{
+				settingsControlBar.Visible = value;
+				showControlBar = value;
 			}
 		}
 
@@ -279,14 +314,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 		}
 
-		private event EventHandler unregisterEvents;
-
-		private void AddHandlers()
-		{
-			PrinterConnectionAndCommunication.Instance.CommunicationStateChanged.RegisterEvent(onPrinterStatusChanged, ref unregisterEvents);
-			ActiveSliceSettings.ActivePrinterChanged.RegisterEvent(APP_onPrinterStatusChanged, ref unregisterEvents);
-			PrinterConnectionAndCommunication.Instance.EnableChanged.RegisterEvent(onPrinterStatusChanged, ref unregisterEvents);
-		}
+		private EventHandler unregisterEvents;
 
 		public override void OnClosed(EventArgs e)
 		{
@@ -311,13 +339,13 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			if (ActiveSliceSettings.Instance != null)
 			{
 				topCategoryTabs.Visible = true;
-				settingsControlBar.Visible = true;
+				settingsControlBar.Visible = showControlBar;
 				noConnectionMessageContainer.Visible = false;
 			}
 			else
 			{
 				topCategoryTabs.Visible = false;
-				settingsControlBar.Visible = false;
+				settingsControlBar.Visible = showControlBar;
 				noConnectionMessageContainer.Visible = true;
 			}
 		}
@@ -611,23 +639,11 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			return nameHolder;
 		}
 
-		public static RootedObjectEventHandler SettingChanged = new RootedObjectEventHandler();
-
-		static private void OnSettingsChanged(SliceSettingData settingData)
-		{
-			SettingChanged.CallEvents(null, new StringEventArgs(settingData.SlicerConfigName));
-
-			if (settingData.ReloadUiWhenChanged)
-			{
-				UiThread.RunOnIdle(() => ApplicationController.Instance.ReloadAll(null, null));
-			}
-		}
-
 		private class SettingsRow : FlowLayoutWidget
 		{
 			public string SettingsKey { get; set; }
 			public string SettingsValue { get; set; }
-			private event EventHandler unregisterEvents;
+			private EventHandler unregisterEvents;
 
 			/// <summary>
 			/// Gets or sets the delegate to be invoked when the settings values need to be refreshed. The implementation should 
@@ -642,7 +658,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				Padding = new BorderDouble(3);
 				HAnchor = Agg.UI.HAnchor.ParentLeftRight;
 
-				SettingChanged.RegisterEvent((s, e) =>
+				ActiveSliceSettings.SettingChanged.RegisterEvent((s, e) =>
 				{
 					if (((StringEventArgs)e).Data == SettingsKey)
 					{
@@ -675,10 +691,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 		private static readonly RGBA_Bytes materialSettingBackgroundColor = new RGBA_Bytes(255, 127, 0, 108);
 		private static readonly RGBA_Bytes qualitySettingBackgroundColor = new RGBA_Bytes(255, 255, 0, 108);
-		// blue user setting color
-		private static readonly RGBA_Bytes userSettingBackgroundColor = new RGBA_Bytes(68, 95, 220, 108);
-		// green user color
-		//private static readonly RGBA_Bytes userSettingBackgroundColor = new RGBA_Bytes(0xff248f24);
+		public static readonly RGBA_Bytes userSettingBackgroundColor = new RGBA_Bytes(68, 95, 220, 108);
 
 		private static string GetActiveValue(string slicerConfigName, IEnumerable<PrinterSettingsLayer> layerCascade)
 		{
@@ -778,7 +791,6 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			int extruderIndex, out bool addControl, ref int tabIndexForItem)
 		{
 			addControl = true;
-			GuiWidget container = new GuiWidget();
 
 			string sliceSettingValue = GetActiveValue(settingData.SlicerConfigName, layerCascade);
 
@@ -852,7 +864,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 								ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, ((NumberEdit)sender).Value.ToString(), persistenceLayer);
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 
 							content.AddChild(intEditWidget);
@@ -889,7 +901,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 								ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, ((NumberEdit)sender).Value.ToString(), persistenceLayer);
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 							dataArea.AddChild(doubleEditWidget);
 							unitsArea.AddChild(GetExtraSettingsWidget(settingData));
@@ -920,10 +932,10 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 							if (ChangesMultipleOtherSettings)
 							{
 								bool allTheSame = true;
-								string setting = GetActiveValue(settingData.SetSettingsOnChange[0], layerCascade);
+								string setting = GetActiveValue(settingData.SetSettingsOnChange[0]["TargetSetting"], layerCascade);
 								for (int i = 1; i < settingData.SetSettingsOnChange.Count; i++)
 								{
-									string nextSetting = GetActiveValue(settingData.SetSettingsOnChange[i], layerCascade);
+									string nextSetting = GetActiveValue(settingData.SetSettingsOnChange[i]["TargetSetting"], layerCascade);
 									if (setting != nextSetting)
 									{
 										allTheSame = false;
@@ -955,16 +967,15 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 								if (ChangesMultipleOtherSettings
 									&& numberEdit.Text != multiValuesAreDiffernt)
 								{
-									foreach (string setting in settingData.SetSettingsOnChange)
 									{
-										ActiveSliceSettings.Instance.SetValue(setting, numberEdit.Value.ToString() + "mm", persistenceLayer);
+										ActiveSliceSettings.Instance.SetValue(settingData.SetSettingsOnChange[0]["TargetSetting"], numberEdit.Value.ToString() + "mm", persistenceLayer);
 									}
 								}
 
 								// also always save to the local setting
 								ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, numberEdit.Value.ToString(), persistenceLayer);
 								settingsRow.UpdateStyle();
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 							content.AddChild(doubleEditWidget);
 							unitsArea.AddChild(GetExtraSettingsWidget(settingData));
@@ -1001,7 +1012,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 							{
 								ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, ((NumberEdit)sender).Value.ToString(), persistenceLayer);
 								settingsRow.UpdateStyle();
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 							dataArea.AddChild(doubleEditWidget);
 							unitsArea.AddChild(GetExtraSettingsWidget(settingData));
@@ -1045,7 +1056,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 								ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, textEditWidget.Text, persistenceLayer);
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 
 							stringEdit.ActualTextEditWidget.InternalTextEditWidget.AllSelected += (sender, e) =>
@@ -1119,7 +1130,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 								}
 								ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, textEditWidget.Text, persistenceLayer);
 								settingsRow.UpdateStyle();
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 
 								// make sure we are still looking for the final validation before saving.
 								if (textEditWidget.ContainsFocus)
@@ -1180,9 +1191,17 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 							{
 								bool isChecked = ((CheckBox)sender).Checked;
 								ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, isChecked ? "1" : "0", persistenceLayer);
+								foreach(var setSettingsData in settingData.SetSettingsOnChange)
+								{
+									string targetValue;
+									if(setSettingsData.TryGetValue(isChecked?"OnValue": "OffValue", out targetValue))
+									{
+										ActiveSliceSettings.Instance.SetValue(setSettingsData["TargetSetting"], targetValue, persistenceLayer);
+									}
+								}
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 
 							dataArea.AddChild(checkBoxWidget);
@@ -1207,7 +1226,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 								ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, ((TextEditWidget)sender).Text, persistenceLayer);
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 
 							dataArea.AddChild(stringEdit);
@@ -1227,12 +1246,14 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 								HAnchor = HAnchor.ParentLeftRight,
 							};
 
+							stringEdit.DrawFromHintedCache();
+
 							stringEdit.ActualTextEditWidget.EditComplete += (sender, e) =>
 							{
 								ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, ((TextEditWidget)sender).Text.Replace("\n", "\\n"), persistenceLayer);
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 
 							nameArea.HAnchor = HAnchor.AbsolutePosition;
@@ -1256,11 +1277,11 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 							// bind to a context that will place it in the SliceSetting view but it binds its values to a machine
 							// specific dictionary key that is not exposed in the UI. At runtime we lookup and store to '<machinename>_com_port'
 							// ensuring that a single printer can be shared across different devices and we'll select the correct com port in each case
-							var selectableOptions = new DropDownList("None", maxHeight: 200)
+							var selectableOptions = new DropDownList("None".Localize(), maxHeight: 200)
 							{
 								ToolTipText = settingData.HelpText,
 								Margin = new BorderDouble(),
-								Name = "Com Port Dropdown"
+								Name = "Serial Port Dropdown"
 							};
 
 							selectableOptions.Click += (s, e) =>
@@ -1282,7 +1303,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 					case SliceSettingData.DataEditTypes.LIST:
 						{
-							var selectableOptions = new DropDownList("None", maxHeight: 200)
+							var selectableOptions = new DropDownList("None".Localize(), maxHeight: 200)
 							{
 								ToolTipText = settingData.HelpText,
 								Margin = new BorderDouble()
@@ -1303,7 +1324,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 									settingsRow.UpdateStyle();
 
-									OnSettingsChanged(settingData);
+									ActiveSliceSettings.OnSettingsChanged(settingData);
 								};
 							}
 
@@ -1334,7 +1355,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 
 							dataArea.AddChild(checkBoxWidget);
@@ -1379,7 +1400,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 							dataArea.AddChild(xEditWidget);
 							dataArea.AddChild(new TextWidget("X", pointSize: 10, textColor: ActiveTheme.Instance.PrimaryTextColor)
@@ -1394,7 +1415,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 							dataArea.AddChild(yEditWidget);
 							var yLabel = new GuiWidget(HAnchor.ParentLeftRight, VAnchor.FitToChildren | VAnchor.ParentCenter)
@@ -1448,7 +1469,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 							dataArea.AddChild(xEditWidget);
 							dataArea.AddChild(new TextWidget("X", pointSize: 10, textColor: ActiveTheme.Instance.PrimaryTextColor)
@@ -1464,7 +1485,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 								settingsRow.UpdateStyle();
 
-								OnSettingsChanged(settingData);
+								ActiveSliceSettings.OnSettingsChanged(settingData);
 							};
 							dataArea.AddChild(yEditWidget);
 							var yLabel = new GuiWidget(HAnchor.ParentLeftRight, VAnchor.FitToChildren | VAnchor.ParentCenter)
@@ -1495,9 +1516,6 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				}
 			}
 
-			container.HAnchor = HAnchor.ParentLeftRight;
-			container.VAnchor = VAnchor.FitToChildren;
-
 			Button restoreButton = null;
 			if (settingData.ShowAsOverride)
 			{
@@ -1522,13 +1540,11 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 					}
 
 					settingsRow.RefreshValue(layerCascade);
-					OnSettingsChanged(settingData);
+					ActiveSliceSettings.OnSettingsChanged(settingData);
 				};
 
 				restoreArea.AddChild(restoreButton);
 			}
-
-			container.AddChild(settingsRow);
 
 			// Define the UpdateStyle implementation
 			settingsRow.UpdateStyle = () =>
@@ -1580,7 +1596,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			// Invoke the UpdateStyle implementation
 			settingsRow.UpdateStyle();
 
-			return container;
+			return settingsRow;
 		}
 
 		private static void AddComMenuItems(SliceSettingData settingData, PrinterSettingsLayer persistenceLayer, SettingsRow settingsRow, DropDownList selectableOptions)
@@ -1611,28 +1627,9 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 					settingsRow.UpdateStyle();
 
-					OnSettingsChanged(settingData);
+					ActiveSliceSettings.OnSettingsChanged(settingData);
 				};
 			}
-		}
-
-		static ImageBuffer restoreNormal = EnsureRestoreButtonImages();
-		static ImageBuffer restoreHover;
-		static ImageBuffer restorePressed;
-
-		static ImageBuffer EnsureRestoreButtonImages()
-		{
-			int size = (int)(16 * GuiWidget.DeviceScale);
-
-			restoreNormal = ColorCircle(size, new RGBA_Bytes(128, 128, 128));
-			if (OsInformation.OperatingSystem == OSType.Android)
-			{
-				restoreNormal = ColorCircle(size, new RGBA_Bytes(200, 0, 0));
-			}
-			restoreHover = ColorCircle(size, new RGBA_Bytes(200, 0, 0));
-			restorePressed = ColorCircle(size, new RGBA_Bytes(255, 0, 0));
-
-			return restoreNormal;
 		}
 
 		private static ImageBuffer ColorCircle(int size, RGBA_Bytes color)
@@ -1668,7 +1665,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				newItem.Selected += (sender, e) =>
 				{
 					ActiveSliceSettings.Instance.SetValue(settingData.SlicerConfigName, valueLocal, persistenceLayer);
-					OnSettingsChanged(settingData);
+					ActiveSliceSettings.OnSettingsChanged(settingData);
 					internalTextWidget.Text = valueLocal;
 					internalTextWidget.OnEditComplete(null);
 				};
@@ -1683,7 +1680,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 			EventHandler localUnregisterEvents = null;
 
-			SettingChanged.RegisterEvent((sender, e) =>
+			ActiveSliceSettings.SettingChanged.RegisterEvent((sender, e) =>
 			{
 				bool foundSetting = false;
 				foreach (QuickMenuNameValue nameValue in settingData.QuickMenuSettings)

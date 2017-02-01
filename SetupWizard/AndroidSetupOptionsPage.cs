@@ -39,6 +39,8 @@ namespace MatterHackers.MatterControl
 {
 	public class SetupOptionsPage : WizardPage
 	{
+		private EventHandler unregisterEvents;
+
 		public SetupOptionsPage()
 			: base("Done")
 		{
@@ -49,55 +51,11 @@ namespace MatterHackers.MatterControl
 
 			contentRow.AddChild(new SetupPrinterView(this.textImageButtonFactory) { WizardPage = this });
 			contentRow.AddChild(new SetupAccountView(this.textImageButtonFactory));
-			contentRow.AddChild(new EnterCodesView(this.textImageButtonFactory));
 
 			footerRow.AddChild(new HorizontalSpacer());
 			footerRow.AddChild(cancelButton);
 
 			cancelButton.Text = "Back".Localize();
-		}
-	}
-
-	public class EnterCodesView : SetupViewBase
-	{
-		public static EventHandler RedeemDesignCode;
-		public static EventHandler EnterShareCode;
-
-		public EnterCodesView(TextImageButtonFactory textImageButtonFactory) : base("")
-		{
-			this.textImageButtonFactory = textImageButtonFactory;
-			FlowLayoutWidget buttonContainer = new FlowLayoutWidget()
-			{
-				HAnchor = HAnchor.ParentLeftRight,
-				Margin = new BorderDouble(0, 14)
-			};
-			mainContainer.AddChild(buttonContainer);
-
-			if (UserSettings.Instance.IsTouchScreen)
-			{
-				// the redeem design code button
-				Button redeemPurchaseButton = textImageButtonFactory.Generate("Redeem Purchase".Localize());
-				redeemPurchaseButton.Enabled = true; // The library selector (the first library selected) is protected so we can't add to it.
-				redeemPurchaseButton.Name = "Redeem Code Button";
-				redeemPurchaseButton.Margin = new BorderDouble(0, 0, 10, 0);
-				redeemPurchaseButton.Click += (sender, e) =>
-				{
-					RedeemDesignCode?.Invoke(this, null);
-				};
-				buttonContainer.AddChild(redeemPurchaseButton);
-
-				// the redeem a share code button
-				Button redeemShareButton = textImageButtonFactory.Generate("Enter Share Code".Localize());
-				redeemShareButton.Enabled = true; // The library selector (the first library selected) is protected so we can't add to it.
-				redeemShareButton.Name = "Enter Share Code";
-				redeemShareButton.Margin = new BorderDouble(0, 0, 3, 0);
-				redeemShareButton.Click += (sender, e) =>
-				{
-					EnterShareCode?.Invoke(this, null);
-				};
-
-				buttonContainer.AddChild(redeemShareButton);
-			}
 		}
 	}
 
@@ -107,7 +65,7 @@ namespace MatterHackers.MatterControl
 
 		private Button disconnectButton;
 		private TextWidget connectionStatus;
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		public SetupPrinterView(TextImageButtonFactory textImageButtonFactory)
 			: base("Printer Profile")
@@ -143,7 +101,7 @@ namespace MatterHackers.MatterControl
 			disconnectButton.Click += (sender, e) =>
 			{
 				PrinterConnectionAndCommunication.Instance.Disable();
-				WizardPage.WizardWindow.ChangeToPage<SetupOptionsPage>();
+				UiThread.RunOnIdle(WizardPage.WizardWindow.ChangeToPage<SetupOptionsPage>);
 			};
 			buttonContainer.AddChild(disconnectButton);
 
@@ -171,14 +129,32 @@ namespace MatterHackers.MatterControl
 
 			this.Invalidate();
 		}
+
+		public override void OnClosed(EventArgs e)
+		{
+			unregisterEvents?.Invoke(this, null);
+			base.OnClosed(e);
+		}
 	}
 
 	public class SetupAccountView : SetupViewBase
 	{
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 		private Button signInButton;
 		private Button signOutButton;
 		private TextWidget statusMessage;
+		TextWidget connectionStatus;
+
+		public static string AuthenticationString { private get; set; } = "";
+
+		internal void RefreshStatus()
+		{
+			connectionStatus.Text = AuthenticationString;
+			if (!HasBeenClosed)
+			{
+				UiThread.RunOnIdle(RefreshStatus, 1);
+			}
+		}
 
 		public SetupAccountView(TextImageButtonFactory textImageButtonFactory)
 			: base("My Account")
@@ -193,37 +169,89 @@ namespace MatterHackers.MatterControl
 				username = "Not Signed In";
 			}
 
-			mainContainer.AddChild(new TextWidget(username, pointSize: 16, textColor: ActiveTheme.Instance.PrimaryTextColor));
+			FlowLayoutWidget nameAndStatus = new FlowLayoutWidget();
+			nameAndStatus.AddChild(new TextWidget(username, pointSize: 16, textColor: ActiveTheme.Instance.PrimaryTextColor));
+
+			connectionStatus = new TextWidget(AuthenticationString, pointSize: 8, textColor: ActiveTheme.Instance.SecondaryTextColor)
+			{
+				Margin = new BorderDouble(5, 0, 0, 0),
+				AutoExpandBoundsToText = true,
+			};
+
+			if (signedIn)
+			{
+				nameAndStatus.AddChild(connectionStatus);
+			}
+
+
+			mainContainer.AddChild(nameAndStatus);
+
+			RefreshStatus();
 
 			FlowLayoutWidget buttonContainer = new FlowLayoutWidget();
 			buttonContainer.HAnchor = HAnchor.ParentLeftRight;
 			buttonContainer.Margin = new BorderDouble(0, 14);
 
-			signInButton = textImageButtonFactory.Generate("Sign In");
+			signInButton = textImageButtonFactory.Generate("Sign In".Localize());
 			signInButton.Margin = new BorderDouble(left: 0);
 			signInButton.VAnchor = VAnchor.ParentCenter;
 			signInButton.Visible = !signedIn;
-			signInButton.Click +=  (s, e) => UiThread.RunOnIdle(() =>
+			signInButton.Click += (s, e) =>
 			{
-				signInButton.Visible = false;
-				signOutButton.Visible = false;
-				statusMessage.Visible = true;
-				ApplicationController.Instance.StartSignIn();
-			});
+#if __ANDROID__
+				if (MatterControlApplication.Instance.IsNetworkConnected() 
+				    && AuthenticationData.Instance.IsConnected)
+				{
+					UiThread.RunOnIdle(ApplicationController.Instance.StartSignIn);
+				}
+				else
+				{
+					WizardWindow.Show<NetworkTroubleshooting>("/networktroubleshooting", "Network Troubleshooting");
+				}
+#else
+				UiThread.RunOnIdle(ApplicationController.Instance.StartSignIn);
+#endif
+			};
 			buttonContainer.AddChild(signInButton);
 
-			signOutButton = textImageButtonFactory.Generate("Sign Out");
+			signOutButton = textImageButtonFactory.Generate("Sign Out".Localize());
 			signOutButton.Margin = new BorderDouble(left: 0);
 			signOutButton.VAnchor = VAnchor.ParentCenter;
 			signOutButton.Visible = signedIn;
-			signOutButton.Click += (s, e) => UiThread.RunOnIdle(() =>
-			{
-				signInButton.Visible = false;
-				signOutButton.Visible = false;
-				statusMessage.Visible = true;
-				ApplicationController.Instance.StartSignOut();
-			});
+			signOutButton.Click += (s, e) => UiThread.RunOnIdle(ApplicationController.Instance.StartSignOut);
 			buttonContainer.AddChild(signOutButton);
+
+			buttonContainer.AddChild(new HorizontalSpacer());
+
+			// the redeem design code button
+			textImageButtonFactory.disabledTextColor = new RGBA_Bytes(textImageButtonFactory.normalTextColor, 100);
+			Button redeemPurchaseButton = textImageButtonFactory.Generate("Redeem Purchase".Localize());
+			redeemPurchaseButton.Enabled = true; // The library selector (the first library selected) is protected so we can't add to it.
+			redeemPurchaseButton.Name = "Redeem Code Button";
+			redeemPurchaseButton.Margin = new BorderDouble(0, 0, 10, 0);
+			redeemPurchaseButton.Click += (sender, e) =>
+			{
+				ApplicationController.Instance.RedeemDesignCode?.Invoke();
+			};
+			buttonContainer.AddChild(redeemPurchaseButton);
+
+			// the redeem a share code button
+			Button redeemShareButton = textImageButtonFactory.Generate("Enter Share Code".Localize());
+			redeemShareButton.Enabled = true; // The library selector (the first library selected) is protected so we can't add to it.
+			redeemShareButton.Name = "Enter Share Code";
+			redeemShareButton.Margin = new BorderDouble(0, 0, 10, 0);
+			redeemShareButton.Click += (sender, e) =>
+			{
+				ApplicationController.Instance.EnterShareCode?.Invoke();
+			};
+
+			if (!signedIn)
+			{
+				redeemPurchaseButton.Enabled = false;
+				redeemShareButton.Enabled = false;
+			}
+
+			buttonContainer.AddChild(redeemShareButton);
 
 			statusMessage = new TextWidget("Please wait...", pointSize: 12, textColor: ActiveTheme.Instance.SecondaryAccentColor);
 			statusMessage.Visible = false;

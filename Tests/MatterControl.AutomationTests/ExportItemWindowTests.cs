@@ -2,70 +2,66 @@
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using MatterHackers.Agg.UI.Tests;
 using MatterHackers.GuiAutomation;
 using NUnit.Framework;
 
 namespace MatterHackers.MatterControl.Tests.Automation
 {
-	[TestFixture, Category("MatterControl.UI.Automation"), RunInApplicationDomain, Category("FixNeeded" /* Not Finished */)]
-	public class ExportItemsFromDownloads
+	[TestFixture, Category("MatterControl.UI.Automation"), RunInApplicationDomain]
+	public class ExportGcodeFromExportWindow
 	{
-		[Test, Apartment(ApartmentState.STA), RunInApplicationDomain]
-		public void ExportAsGcode()
+		[Test, Apartment(ApartmentState.STA)]
+		public async Task ExportAsGcode()
 		{
-			// Run a copy of MatterControl
-			Action<AutomationTesterHarness> testToRun = (AutomationTesterHarness resultsHarness) =>
+			AutomationTest testToRun = (testRunner) =>
 			{
-				AutomationRunner testRunner = new AutomationRunner(MatterControlUtilities.DefaultTestImages);
-				{
-					MatterControlUtilities.PrepForTestRun(testRunner);
+				testRunner.CloseSignInAndPrinterSelect();
 
-					MatterControlUtilities.AddAndSelectPrinter(testRunner, "Airwolf 3D", "HD");
+				MatterControlUtilities.AddAndSelectPrinter(testRunner, "Airwolf 3D", "HD");
 
-					string firstItemName = "Row Item Batman";
-					//Navigate to Downloads Library Provider
-					testRunner.ClickByName("Queue Tab");
-					testRunner.ClickByName("Queue Add Button", 2);
+				string firstItemName = "Queue Item Batman";
+				//Navigate to Downloads Library Provider
+				testRunner.ClickByName("Queue Tab");
+				testRunner.ClickByName("Queue Add Button", 2);
 
-					//Get parts to add
-					string rowItemPath = MatterControlUtilities.GetTestItemPath("Batman.stl");
+				//Get parts to add
+				string rowItemPath = MatterControlUtilities.GetTestItemPath("Batman.stl");
 
-					//Add STL part items to Downloads and then type paths into file dialogue
-					testRunner.Wait(1);
-					testRunner.Type(MatterControlUtilities.GetTestItemPath("Batman.stl"));
-					testRunner.Wait(1);
-					testRunner.Type("{Enter}");
+				//Add STL part items to Downloads and then type paths into file dialog
+				testRunner.Delay(1);
+				testRunner.Type(MatterControlUtilities.GetTestItemPath("Batman.stl"));
+				testRunner.Delay(1);
+				testRunner.Type("{Enter}");
 
-					//Get test results 
-					resultsHarness.AddTestResult(testRunner.WaitForName(firstItemName, 2) == true);
+				//Get test results 
+				Assert.IsTrue(testRunner.WaitForName(firstItemName, 2) == true);
 
-					testRunner.ClickByName("Queue Edit Button");
-					testRunner.ClickByName(firstItemName);
-					testRunner.ClickByName("Queue Export Button");
-					testRunner.Wait(2);
+				testRunner.ClickByName("Queue Export Button");
+				testRunner.Delay(2);
 
-					testRunner.WaitForName("Export Item Window", 2);
-					testRunner.ClickByName("Export as GCode Button", 2);
-					testRunner.Wait(2);
+				testRunner.WaitForName("Export Item Window", 2);
+				testRunner.ClickByName("Export as GCode Button", 2);
+				testRunner.Delay(2);
 
-					string gcodeExportPath = MatterControlUtilities.PathToExportGcodeFolder;
-					testRunner.Type(gcodeExportPath);
-					testRunner.Type("{Enter}");
-					testRunner.Wait(2);
+				string gcodeOutputPath = MatterControlUtilities.PathToExportGcodeFolder;
 
-					Console.WriteLine(gcodeExportPath);
+				Directory.CreateDirectory(gcodeOutputPath);
 
-					resultsHarness.AddTestResult(File.Exists(gcodeExportPath) == true);
-					Debugger.Break();
+				string fullPathToGcodeFile = Path.Combine(gcodeOutputPath, "Batman");
+				testRunner.Type(fullPathToGcodeFile);
+				testRunner.Type("{Enter}");
+				testRunner.Delay(2);
 
-					MatterControlUtilities.CloseMatterControl(testRunner);
-				}
+				Console.WriteLine(gcodeOutputPath);
+
+				Assert.IsTrue(File.Exists(fullPathToGcodeFile + ".gcode") == true);
+
+				return Task.FromResult(0);
 			};
 
-			AutomationTesterHarness testHarness = MatterControlUtilities.RunTest(testToRun);
-
-			Assert.IsTrue(testHarness.AllTestsPassed(2));
+			await MatterControlUtilities.RunTest(testToRun);
 		}
 	}
 }

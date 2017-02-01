@@ -84,6 +84,12 @@ namespace MatterHackers.MatterControl
 			get { return actuallTextEditWidget.InternalTextEditWidget.SelectAllOnFocus; }
 			set { actuallTextEditWidget.InternalTextEditWidget.SelectAllOnFocus = value; }
 		}
+
+		public void DrawFromHintedCache()
+		{
+			ActualTextEditWidget.Printer.DrawFromHintedCache = true;
+			ActualTextEditWidget.DoubleBuffer = false;
+		}
 	}
 
 	public class MHPasswordTextEditWidget : MHTextEditWidget
@@ -111,6 +117,12 @@ namespace MatterHackers.MatterControl
 			// put in back in after the hidden text
 			noContentFieldDescription.ClearRemovedFlag();
 			AddChild(noContentFieldDescription);
+		}
+
+		public bool Hidden
+		{
+			get { return !passwordCoverText.Visible; }
+			set { passwordCoverText.Visible = !value; }
 		}
 	}
 

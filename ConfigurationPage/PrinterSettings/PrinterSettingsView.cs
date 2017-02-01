@@ -22,7 +22,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 		private DisableableWidget eePromControlsContainer;
 		private DisableableWidget terminalCommunicationsContainer;
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		public HardwareSettingsWidget()
 			: base("Hardware".Localize())
@@ -49,10 +49,8 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 
 			AddChild(mainContainer);
 			AddHandlers();
-			SetVisibleControls();
+			SetEnabledStates();
 		}
-
-		private TextWidget printLevelingStatusLabel;
 
 		public override void OnClosed(EventArgs e)
 		{
@@ -84,7 +82,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 			cameraLabel.VAnchor = VAnchor.ParentCenter;
 
 			openCameraButton = textImageButtonFactory.Generate("Preview".Localize().ToUpper());
-			openCameraButton.Click += new EventHandler(openCameraPreview_Click);
+			openCameraButton.Click += openCameraPreview_Click;
 			openCameraButton.Margin = new BorderDouble(left: 6);
 
 			buttonRow.AddChild(cameraIcon);
@@ -139,7 +137,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 
 			openGcodeTerminalButton = textImageButtonFactory.Generate("Show Terminal".Localize().ToUpper());
 			openGcodeTerminalButton.Name = "Show Terminal Button";
-			openGcodeTerminalButton.Click += new EventHandler(openGcodeTerminalButton_Click);
+			openGcodeTerminalButton.Click += openGcodeTerminalButton_Click;
 
 			buttonRow.AddChild(terminalIcon);
 			buttonRow.AddChild(gcodeTerminalLabel);
@@ -175,7 +173,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 			levelingIcon.Margin = new BorderDouble(right: 6);
 
 			Button configureEePromButton = textImageButtonFactory.Generate("Configure".Localize().ToUpper());
-			configureEePromButton.Click += new EventHandler(configureEePromButton_Click);
+			configureEePromButton.Click += configureEePromButton_Click;
 
 			//buttonRow.AddChild(eePromIcon);
 			buttonRow.AddChild(notificationSettingsLabel);
@@ -187,8 +185,8 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 
 		private void AddHandlers()
 		{
-			PrinterConnectionAndCommunication.Instance.CommunicationStateChanged.RegisterEvent(onPrinterStatusChanged, ref unregisterEvents);
-			PrinterConnectionAndCommunication.Instance.EnableChanged.RegisterEvent(onPrinterStatusChanged, ref unregisterEvents);
+			PrinterConnectionAndCommunication.Instance.CommunicationStateChanged.RegisterEvent((e, s) => SetEnabledStates(), ref unregisterEvents);
+			PrinterConnectionAndCommunication.Instance.EnableChanged.RegisterEvent((e,s) => SetEnabledStates(), ref unregisterEvents);
 		}
 
 		private void openCameraPreview_Click(object sender, EventArgs e)
@@ -249,13 +247,7 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 			UiThread.RunOnIdle(TerminalWindow.Show);
 		}
 
-		private void onPrinterStatusChanged(object sender, EventArgs e)
-		{
-			SetVisibleControls();
-			this.Invalidate();
-		}
-
-		private void SetVisibleControls()
+		private void SetEnabledStates()
 		{
 			if (!ActiveSliceSettings.Instance.PrinterSelected)
 			{
@@ -315,6 +307,8 @@ namespace MatterHackers.MatterControl.ConfigurationPage
 						throw new NotImplementedException();
 				}
 			}
+
+			this.Invalidate();
 		}
 	}
 }

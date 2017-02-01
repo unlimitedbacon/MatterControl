@@ -126,7 +126,6 @@ namespace MatterHackers.MatterControl
 			this.Click += DoOnMouseClick;
 			this.MouseEnterBounds += onEnter;
 			this.MouseLeaveBounds += onExit;
-			ActiveTheme.ThemeChanged.RegisterEvent(ThemeChanged, ref unregisterEvents);
 		}
 
 		private void DoOnMouseClick(object sender, EventArgs e)
@@ -158,7 +157,7 @@ namespace MatterHackers.MatterControl
 		
 		public event EventHandler<StringEventArgs> DoneRendering;
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		public enum ImageSizes { Size50x50, Size115x115 };
 
@@ -257,19 +256,6 @@ namespace MatterHackers.MatterControl
 				Stroke strokeRect = new Stroke(borderRect, BorderWidth);
 				graphics2D.Render(strokeRect, HoverBorderColor);
 			}
-		}
-
-		public void ThemeChanged(object sender, EventArgs e)
-		{
-			//Set background color to new theme
-			this.normalBackgroundColor = ActiveTheme.Instance.PrimaryAccentColor;
-			this.BackgroundColor = ActiveTheme.Instance.PrimaryAccentColor;
-
-			//Regenerate thumbnails
-			// The thumbnail color is currently white and does not change with this change.
-			// If we eventually change the thumbnail color with the theme we will need to change this.
-			//this.thumbNailHasBeenRequested = false;
-			this.Invalidate();
 		}
 
 		private static ImageBuffer BuildImageFromMeshGroups(List<MeshGroup> loadedMeshGroups, string stlHashCode, Point2D size)
@@ -388,27 +374,34 @@ namespace MatterHackers.MatterControl
 			return false;
 		}
 
-		private static ImageBuffer LoadImageFromDisk(PartThumbnailWidget thumbnailWidget, string stlHashCode)
+		public static ImageBuffer LoadImageFromDisk(string stlHashCode)
 		{
-			ImageBuffer tempImage = new ImageBuffer(BigRenderSize.x, BigRenderSize.y);
-			string imageFileName = GetImageFileName(stlHashCode);
-
-			if (File.Exists(imageFileName))
+			try
 			{
-				if (partExtension == ".png")
+				ImageBuffer tempImage = new ImageBuffer(BigRenderSize.x, BigRenderSize.y);
+				string imageFileName = GetImageFileName(stlHashCode);
+
+				if (File.Exists(imageFileName))
 				{
-					if (ImageIO.LoadImageData(imageFileName, tempImage))
+					if (partExtension == ".png")
 					{
-						return tempImage;
+						if (ImageIO.LoadImageData(imageFileName, tempImage))
+						{
+							return tempImage;
+						}
+					}
+					else
+					{
+						if (ImageTgaIO.LoadImageData(tempImage, imageFileName))
+						{
+							return tempImage;
+						}
 					}
 				}
-				else
-				{
-					if (ImageTgaIO.LoadImageData(imageFileName, tempImage))
-					{
-						return tempImage;
-					}
-				}
+			}
+			catch
+			{
+
 			}
 
 			return null;
@@ -587,8 +580,7 @@ namespace MatterHackers.MatterControl
 			if (partPreviewWindow == null)
 			{
 				partPreviewWindow = new PartPreviewMainWindow(this.ItemWrapper, autoRotate);
-				partPreviewWindow.Name = "Part Preview Window Thumbnail";
-				partPreviewWindow.Closed += (object sender, EventArgs e) =>
+				partPreviewWindow.Closed += (s, e) =>
 				{
 					this.partPreviewWindow = null;
 				};
@@ -614,13 +606,13 @@ namespace MatterHackers.MatterControl
 				{
 					case ImageSizes.Size115x115:
 						{
-							StaticData.Instance.LoadIcon(Path.ChangeExtension("icon_sd_card_115x115", partExtension), this.thumbnailImage);
+							this.thumbnailImage = StaticData.Instance.LoadIcon(Path.ChangeExtension("icon_sd_card_115x115", partExtension)).InvertLightness();
 						}
 						break;
 
 					case ImageSizes.Size50x50:
 						{
-							StaticData.Instance.LoadIcon(Path.ChangeExtension("icon_sd_card_50x50", partExtension), this.thumbnailImage);
+							this.thumbnailImage = StaticData.Instance.LoadIcon(Path.ChangeExtension("icon_sd_card_50x50", partExtension)).InvertLightness();
 						}
 						break;
 
@@ -676,7 +668,7 @@ namespace MatterHackers.MatterControl
 
 			if (stlHashCode != "0")
 			{
-				ImageBuffer bigRender = LoadImageFromDisk(this, stlHashCode);
+				ImageBuffer bigRender = LoadImageFromDisk(stlHashCode);
 				if (bigRender == null)
 				{
 					this.thumbnailImage = new ImageBuffer(buildingThumbnailImage);

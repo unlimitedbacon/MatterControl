@@ -352,9 +352,11 @@ namespace MatterHackers.MatterControl.Plugins.BrailleBuilder
 		{
 			if (firstDraw)
 			{
-#if !__ANDROID__
-				textToAddWidget.Focus();
-#endif
+				if (!UserSettings.Instance.IsTouchScreen)
+				{
+					textToAddWidget.Focus();
+				}
+
 				//textToAddWidget.Text = "Test Text";
 				firstDraw = false;
 			}
@@ -843,7 +845,7 @@ namespace MatterHackers.MatterControl.Plugins.BrailleBuilder
 
 		private void AddHandlers()
 		{
-			closeButton.Click += new EventHandler(onCloseButton_Click);
+			closeButton.Click += onCloseButton_Click;
 
 			saveButton.Click += (sender, e) =>
 			{

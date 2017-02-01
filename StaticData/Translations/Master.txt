@@ -5263,23 +5263,32 @@ Translated:Sorry! Looks like an account already exists for that email address.
 English:Settings History
 Translated:Settings History
 
-English:The amount that the perimeter will overlap itself when it completes its loop, as a percent of the Nozzle Diameter.
-Translated:The amount that the perimeter will overlap itself when it completes its loop, as a percent of the Nozzle Diameter.
+English:Allows the printer to attempt to connect to a printer over the network.
+Translated:Allows the printer to attempt to connect to a printer over the network.
 
-English:Start end Overlap
-Translated:Start end Overlap
+English:IP Address of printer/printer controller
+Translated:IP Address of printer/printer controller
 
-English:Select a printer.
-Translated:Select a printer.
+English:Port number to be used with IP Adress to connect to printer over the network
+Translated:Port number to be used with IP Adress to connect to printer over the network
 
-English:Unable to Connect
-Translated:Unable to Connect
+English:IP Address
+Translated:IP Address
 
-English:All extrusions are multiplied by this value. Increasing it above 1 will increase the amount of filament being extruded (1.1 is a good max value); decreasing it will decrease the amount being extruded (.9 is a good minimum value).
-Translated:All extrusions are multiplied by this value. Increasing it above 1 will increase the amount of filament being extruded (1.1 is a good max value); decreasing it will decrease the amount being extruded (.9 is a good minimum value).
+English:Port
+Translated:Port
+
+English:Enable Network Printing
+Translated:Enable Network Printing
+
+English:Determines the method of communication used to talk to your printer.
+Translated:Determines the method of communication used to talk to your printer.
 
 English:The layer(s) at which the print will pause, allowing for a change in filament. Leave blank to disable. To pause on multiple layers, separate the layer numbers with semicolons. For example: "16; 37".
 Translated:The layer(s) at which the print will pause, allowing for a change in filament. Leave blank to disable. To pause on multiple layers, separate the layer numbers with semicolons. For example: "16; 37".
+
+English:All extrusions are multiplied by this value. Increasing it above 1 will increase the amount of filament being extruded (1.1 is a good max value); decreasing it will decrease the amount being extruded (.9 is a good minimum value).
+Translated:All extrusions are multiplied by this value. Increasing it above 1 will increase the amount of filament being extruded (1.1 is a good max value); decreasing it will decrease the amount being extruded (.9 is a good minimum value).
 
 English:The distance that the perimeter will overlap itself when it completes its loop, expressed as a percentage of the Nozzle Diameter.
 Translated:The distance that the perimeter will overlap itself when it completes its loop, expressed as a percentage of the Nozzle Diameter.
@@ -5290,14 +5299,26 @@ Translated:Start End Overlap
 English:Layer(s) To Pause:
 Translated:Layer(s) To Pause:
 
-English:Select Printers to Sync
-Translated:Select Printers to Sync
+English:Allows the printer to attempt to connect to a printer over the network. (You must disconnect and reconnect for this to take effect)
+Translated:Allows the printer to attempt to connect to a printer over the network. (You must disconnect and reconnect for this to take effect)
 
-English:Printers to Sync:
-Translated:Printers to Sync:
+English:Allows the printer to use the s3g communication method. (You must disconnect and reconnect for this to take effect)
+Translated:Allows the printer to use the s3g communication method. (You must disconnect and reconnect for this to take effect)
 
-English:Sync
-Translated:Sync
+English:Enable Sailfish Communication
+Translated:Enable Sailfish Communication
+
+English:Sets MatterControl to attempt to connect to a printer over the network. (You must disconnect and reconnect for this to take effect)
+Translated:Sets MatterControl to attempt to connect to a printer over the network. (You must disconnect and reconnect for this to take effect)
+
+English:Sets MatterControl to use s3g communication method. (You must disconnect and reconnect for this to take effect)
+Translated:Sets MatterControl to use s3g communication method. (You must disconnect and reconnect for this to take effect)
+
+English:Networked Printing
+Translated:Networked Printing
+
+English:Sailfish Communication
+Translated:Sailfish Communication
 
 English:The position (X and Y coordinates) of the center of the print bed, in millimeters. Normally this is 1/2 the bed size for Cartesian printers and 0, 0 for Delta printers.
 Translated:The position (X and Y coordinates) of the center of the print bed, in millimeters. Normally this is 1/2 the bed size for Cartesian printers and 0, 0 for Delta printers.
@@ -5523,4 +5544,340 @@ Translated:It's time to copy your existing printer settings to your MatterHacker
 
 English:Location: 'Settings & Controls' -> 'Settings' -> 'Printer' -> 'Custom G-Code' -> 'Start G-Code'
 Translated:Location: 'Settings & Controls' -> 'Settings' -> 'Printer' -> 'Custom G-Code' -> 'Start G-Code'
+
+English:none
+Translated:none
+
+English:Exit while printing
+Translated:Exit while printing
+
+English:Are you sure you want exit while a print is running from SD Card?\n\nNote: If you exit, it is recommended you wait until the print is completed before running MatterControl again.
+Translated:Are you sure you want exit while a print is running from SD Card?\n\nNote: If you exit, it is recommended you wait until the print is completed before running MatterControl again.
+
+English:Connect printer and power on
+Translated:Connect printer and power on
+
+English:Detect perimeters that cross over themselves and combine them.
+Translated:Detect perimeters that cross over themselves and combine them.
+
+English:Merge Overlapping Lines
+Translated:Merge Overlapping Lines
+
+English:Restore Settings
+Translated:Restore Settings
+
+English:Streaming GCode...
+Translated:Streaming GCode...
+
+English:Layers & Infill
+Translated:Layers & Infill
+
+English:Raft & Support
+Translated:Raft & Support
+
+English:Redeem Code
+Translated:Redeem Code
+
+English:Library - Enter Share Code
+Translated:Library - Enter Share Code
+
+English:Macro Feedback
+Translated:Macro Feedback
+
+English:OK
+Translated:OK
+
+English:Load Filament
+Translated:Load Filament
+
+English:UnloadFilament
+Translated:UnloadFilament
+
+English:This controls the ratio of material extruded during bridging. Reducing this slightly can help bridging by stretching the filament more, and using a fan can also help greatly.
+Translated:This controls the ratio of material extruded during bridging. Reducing this slightly can help bridging by stretching the filament more, and using a fan can also help greatly.
+
+English:Each individual part is printed to completion then the nozzle is lowered back to the bed and the next part is printed.
+Translated:Each individual part is printed to completion then the nozzle is lowered back to the bed and the next part is printed.
+
+English:Moves the nozzle up and off the part to allow cooling.
+Translated:Moves the nozzle up and off the part to allow cooling.
+
+English:Detects sections of the model that would be too thin to print and expands them to make them printable.
+Translated:Detects sections of the model that would be too thin to print and expands them to make them printable.
+
+English:Indicates that the Z axis homes the hot end away from the bed (z-max homing)
+Translated:Indicates that the Z axis homes the hot end away from the bed (z-max homing)
+
+English:The X and Y position of the hot end that minimizes the chance of colliding with the parts on the bed.
+Translated:The X and Y position of the hot end that minimizes the chance of colliding with the parts on the bed.
+
+English:The temperature to which the nozzle will be heated before printing the first layer of a part. The printer will wait until this temperature has been reached before printing.
+Translated:The temperature to which the nozzle will be heated before printing the first layer of a part. The printer will wait until this temperature has been reached before printing.
+
+English:This will lower the temperature of the non-printing nozzle to help prevent oozing.
+Translated:This will lower the temperature of the non-printing nozzle to help prevent oozing.
+
+English:The distance that a perimeter will overlap itself when it completes its loop, expressed as a percentage of the Nozzle Diameter.
+Translated:The distance that a perimeter will overlap itself when it completes its loop, expressed as a percentage of the Nozzle Diameter.
+
+English:Forces the print to have only one extrusion and gradually increase the Z height during the print. Only one part will print at a time with this feature.
+Translated:Forces the print to have only one extrusion and gradually increase the Z height during the print. Only one part will print at a time with this feature.
+
+English:The number of degrees Centigrade to lower the temperature of a nozzle while it is not active.
+Translated:The number of degrees Centigrade to lower the temperature of a nozzle while it is not active.
+
+English:Disconnect and stop the current print?
+Translated:Disconnect and stop the current print?
+
+English:WARNING: Disconnecting will stop the current print
+Translated:WARNING: Disconnecting will stop the current print
+
+English:WARNING: Disconnecting will stop the current print.\n\nAre you sure you want to disconnect?
+Translated:WARNING: Disconnecting will stop the current print.\n\nAre you sure you want to disconnect?
+
+English:Select a printer.
+Translated:Select a printer.
+
+English:Note: Be sure the tip of the extruder is clean.
+Translated:Note: Be sure the tip of the extruder is clean.
+
+English:- none -
+Translated:- none -
+
+English:Actions
+Translated:Actions
+
+English:Show In Action Menu
+Translated:Show In Action Menu
+
+English:Unable to Connect
+Translated:Unable to Connect
+
+English:Port number to be used with IP Address to connect to printer over the network
+Translated:Port number to be used with IP Address to connect to printer over the network
+
+English:Reset to Defaults
+Translated:Reset to Defaults
+
+English:The serial port to use while connecting to this printer.
+Translated:The serial port to use while connecting to this printer.
+
+English:Save Changed
+Translated:Save Changed
+
+English:Discard Changes
+Translated:Discard Changes
+
+English:Stay Connected
+Translated:Stay Connected
+
+English:Cancel Print
+Translated:Cancel Print
+
+English:Continue Printing
+Translated:Continue Printing
+
+English:Recovered Once
+Translated:Recovered Once
+
+English:Recovered once
+Translated:Recovered once
+
+English:recovered once
+Translated:recovered once
+
+English:Add New Printer
+Translated:Add New Printer
+
+English:Add New Setting
+Translated:Add New Setting
+
+English:Sync Dashboard
+Translated:Sync Dashboard
+
+English:SD Card
+Translated:SD Card
+
+English:MatterControl: Select Firmware File
+Translated:MatterControl: Select Firmware File
+
+English:Starting firmware update...
+Translated:Starting firmware update...
+
+English:Disconnecting from printer...
+Translated:Disconnecting from printer...
+
+English:Initializing hardware...
+Translated:Initializing hardware...
+
+English:Creating firmware backup...
+Translated:Creating firmware backup...
+
+English:Update In Progress: {0}
+Translated:Update In Progress: {0}
+
+English:Updating firmware...
+Translated:Updating firmware...
+
+English:Firmware updated successfully. Please reconnect.
+Translated:Firmware updated successfully. Please reconnect.
+
+English:The 'Serial Port' section lists all available serial\nports on your device. Changing which USB port the printer\nis conneted to may change the associated serial port.\n\nTip: If you are uncertain, unplug/plug in your printer\nand hit refresh. The new port that appears should be\nyour printer.
+Translated:The 'Serial Port' section lists all available serial\nports on your device. Changing which USB port the printer\nis conneted to may change the associated serial port.\n\nTip: If you are uncertain, unplug/plug in your printer\nand hit refresh. The new port that appears should be\nyour printer.
+
+English:Reverting firmware to previous version...
+Translated:Reverting firmware to previous version...
+
+English:Firmware restored successfully. Please reconnect.
+Translated:Firmware restored successfully. Please reconnect.
+
+English:SET
+Translated:SET
+
+English:Move X negative
+Translated:Move X negative
+
+English:Move X positive
+Translated:Move X positive
+
+English:Move Y positive
+Translated:Move Y positive
+
+English:Move Y negative
+Translated:Move Y negative
+
+English:Move Z positive
+Translated:Move Z positive
+
+English:Move Z negative
+Translated:Move Z negative
+
+English:Enable cursor keys for movement
+Translated:Enable cursor keys for movement
+
+English:Retract filament
+Translated:Retract filament
+
+English:Extrude filament
+Translated:Extrude filament
+
+English:Home X, Y and Z
+Translated:Home X, Y and Z
+
+English:Home X
+Translated:Home X
+
+English:Home Y
+Translated:Home Y
+
+English:Home Z
+Translated:Home Z
+
+English:Open cloud sync dashboard in web browser
+Translated:Open cloud sync dashboard in web browser
+
+English:Restart
+Translated:Restart
+
+English:Please Review Your Order
+Translated:Please Review Your Order
+
+English:Loading product information. Pleast wait...
+Translated:Loading product information. Pleast wait...
+
+English:Enter Code: 
+Translated:Enter Code: 
+
+English:Use Promo Code
+Translated:Use Promo Code
+
+English:Applying...
+Translated:Applying...
+
+English:Enter your Billing Address
+Translated:Enter your Billing Address
+
+English:Full Name
+Translated:Full Name
+
+English:Enter your Payment Info
+Translated:Enter your Payment Info
+
+English:Place Order
+Translated:Place Order
+
+English:Additional payment options coming soon!
+Translated:Additional payment options coming soon!
+
+English:- Please Select -
+Translated:- Please Select -
+
+English:Credit Card Number
+Translated:Credit Card Number
+
+English:Expiration Date
+Translated:Expiration Date
+
+English:Card Verification Number
+Translated:Card Verification Number
+
+English:Saving...
+Translated:Saving...
+
+English:Oops! Payment has been declined.
+Translated:Oops! Payment has been declined.
+
+English:Distance or Loops
+Translated:Distance or Loops
+
+English:The z offset to apply to improve the first layer adhesion.
+Translated:The z offset to apply to improve the first layer adhesion.
+
+English:Baby Step Offset
+Translated:Baby Step Offset
+
+English:Oops! Unable to initialize device.
+Translated:Oops! Unable to initialize device.
+
+English:The distance between the top of the raft and the bottom of the model. 0.6 mm is a good starting point for PLA and 0.4 mm is a good starting point for ABS. Lower values give a smoother surface, higher values make the print easier to remove.
+Translated:The distance between the top of the raft and the bottom of the model. 0.6 mm is a good starting point for PLA and 0.4 mm is a good starting point for ABS. Lower values give a smoother surface, higher values make the print easier to remove.
+
+English:Clear ZOffset
+Translated:Clear ZOffset
+
+English:Printing Window...
+Translated:Printing Window...
+
+English:Only Retract When Crossing Perimeters
+Translated:Only Retract When Crossing Perimeters
+
+English:baby_step_z_offset
+Translated:baby_step_z_offset
+
+English:gcode_arcs
+Translated:gcode_arcs
+
+English:calibration_files
+Translated:calibration_files
+
+English:'External Perimeter Extrusion Width' must be less than or equal to the 'Nozzle Diameter' * 4.
+Translated:'External Perimeter Extrusion Width' must be less than or equal to the 'Nozzle Diameter' * 4.
+
+English:External Perimeter Extrusion Width = {0}\nNozzle Diameter = {1}
+Translated:External Perimeter Extrusion Width = {0}\nNozzle Diameter = {1}
+
+English:Location: 'Settings & Controls' -> 'Settings' -> 'Filament' -> 'Extrusion' -> 'External Perimeter'
+Translated:Location: 'Settings & Controls' -> 'Settings' -> 'Filament' -> 'Extrusion' -> 'External Perimeter'
+
+English:'External Perimeter Extrusion Width' must be greater than 0.
+Translated:'External Perimeter Extrusion Width' must be greater than 0.
+
+English:External Perimeter Extrusion Width = {0}
+Translated:External Perimeter Extrusion Width = {0}
+
+English:The starting height (z) of the print head before probing each print level position.
+Translated:The starting height (z) of the print head before probing each print level position.
+
+English:Probe Start Height
+Translated:Probe Start Height
 

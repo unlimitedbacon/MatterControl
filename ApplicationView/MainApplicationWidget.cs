@@ -52,6 +52,9 @@ namespace MatterHackers.MatterControl
 	using System.Reflection;
 	using System.Text.RegularExpressions;
 	using SettingsManagement;
+	using PrintHistory;
+	using Agg.Image;
+	using System.Net;
 
 	public class OemProfileDictionary : Dictionary<string, Dictionary<string, PublicDevice>>
 	{
@@ -67,7 +70,7 @@ namespace MatterHackers.MatterControl
 
 	public abstract class ApplicationView : GuiWidget
 	{
-		public abstract void AddElements();
+		public abstract void CreateAndAddChildren();
 	}
 
 	public class TouchscreenView : ApplicationView
@@ -81,7 +84,7 @@ namespace MatterHackers.MatterControl
 
 		public TouchscreenView()
 		{
-			AddElements();
+			CreateAndAddChildren();
 			this.AnchorAll();
 		}
 
@@ -95,7 +98,7 @@ namespace MatterHackers.MatterControl
 			this.TopContainer.Visible = !this.TopContainer.Visible;
 		}
 
-		public override void AddElements()
+		public override void CreateAndAddChildren()
 		{
 			topIsHidden = false;
 			this.BackgroundColor = ActiveTheme.Instance.PrimaryBackgroundColor;
@@ -106,11 +109,14 @@ namespace MatterHackers.MatterControl
 			TopContainer = new FlowLayoutWidget(FlowDirection.TopToBottom);
 			TopContainer.HAnchor = HAnchor.ParentLeftRight;
 
+			if (!UserSettings.Instance.IsTouchScreen)
+			{
 #if !__ANDROID__
-			// The application menu bar, which is suppressed on Android
-			ApplicationMenuRow menuRow = new ApplicationMenuRow();
-			TopContainer.AddChild(menuRow);
+				// The application menu bar, which is suppressed on Android
+				ApplicationMenuRow menuRow = new ApplicationMenuRow();
+				TopContainer.AddChild(menuRow);
 #endif
+			}
 
 			menuSeparator = new GuiWidget();
 			menuSeparator.Height = 12;
@@ -140,22 +146,25 @@ namespace MatterHackers.MatterControl
 
 		public DesktopView()
 		{
-			AddElements();
+			CreateAndAddChildren();
 			this.AnchorAll();
 		}
 
-		public override void AddElements()
+		public override void CreateAndAddChildren()
 		{
 			this.BackgroundColor = ActiveTheme.Instance.PrimaryBackgroundColor;
 
 			var container = new FlowLayoutWidget(FlowDirection.TopToBottom);
 			container.AnchorAll();
 
+			if (!UserSettings.Instance.IsTouchScreen)
+			{
 #if !__ANDROID__
-			// The application menu bar, which is suppressed on Android
-			var menuRow = new ApplicationMenuRow();
-			container.AddChild(menuRow);
+				// The application menu bar, which is suppressed on Android
+				var menuRow = new ApplicationMenuRow();
+				container.AddChild(menuRow);
 #endif
+			}
 
 			var menuSeparator = new GuiWidget()
 			{
@@ -178,6 +187,9 @@ namespace MatterHackers.MatterControl
 
 	public class ApplicationController
 	{
+		public Action RedeemDesignCode;
+		public Action EnterShareCode;
+
 		private static ApplicationController globalInstance;
 		public RootedObjectEventHandler AdvancedControlsPanelReloading = new RootedObjectEventHandler();
 		public RootedObjectEventHandler CloudSyncStatusChanged = new RootedObjectEventHandler();
@@ -186,7 +198,9 @@ namespace MatterHackers.MatterControl
 
 		public static Action SignInAction;
 		public static Action SignOutAction;
-		public static Action<bool> OutboundRequest;
+		
+		public static Action WebRequestFailed;
+		public static Action WebRequestSucceeded;
 
 
 #if DEBUG
@@ -202,7 +216,7 @@ namespace MatterHackers.MatterControl
 
 		public static Func<string, Task<Dictionary<string, string>>> GetProfileHistory;
 		public static Func<PrinterInfo,string, Task<PrinterSettings>> GetPrinterProfileAsync;
-		public static Func<IProgress<SyncReportType>,Task> SyncPrinterProfiles;
+		public static Func<string, IProgress<SyncReportType>,Task> SyncPrinterProfiles;
 		public static Func<Task<OemProfileDictionary>> GetPublicProfileList;
 		public static Func<string, Task<PrinterSettings>> DownloadPublicProfileAsync;
 
@@ -214,7 +228,7 @@ namespace MatterHackers.MatterControl
 
 		public event EventHandler ApplicationClosed;
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		static int applicationInstanceCount = 0;
 		public static int ApplicationInstanceCount
@@ -252,7 +266,7 @@ namespace MatterHackers.MatterControl
 		public ApplicationController()
 		{
 			// Name = "MainSlidePanel";
-			ActiveTheme.ThemeChanged.RegisterEvent(ReloadAll, ref unregisterEvents);
+			ActiveTheme.ThemeChanged.RegisterEvent((s, e) => ReloadAll(), ref unregisterEvents);
 
 			// Remove consumed ClientToken from running list on shutdown
 			ApplicationClosed += (s, e) => ApplicationSettings.Instance.ReleaseClientToken();
@@ -286,8 +300,6 @@ namespace MatterHackers.MatterControl
 
 				return monoSpacedTypeFace;
 			}
-
-			private set { }
 		}
 
 		/// <summary>
@@ -388,88 +400,61 @@ namespace MatterHackers.MatterControl
 			}
 		}
 
-		private static string MakeValidFileName(string name)
-		{
-			if (string.IsNullOrEmpty(name))
-			{
-				return name;
-			}
-
-			string invalidChars = Regex.Escape(new string(Path.GetInvalidFileNameChars()));
-			string invalidRegStr = string.Format(@"([{0}]*\.+$)|([{0}]+)", invalidChars);
-
-			return Regex.Replace(name, invalidRegStr, "_");
-		}
-
-		public string GetSessionUsernameForFileSystem()
-		{
-			return MakeValidFileName(AuthenticationData.Instance.ActiveSessionUsername);
-		}
-
 		bool pendingReloadRequest = false;
-		public void ReloadAll(object sender, EventArgs e)
+		public void ReloadAll()
 		{
-			if (!pendingReloadRequest 
-				&& MainView != null)
+			if (pendingReloadRequest || MainView == null)
 			{
-				pendingReloadRequest = true;
-				MainView.AfterDraw += DoReloadAll;
-				MainView.Invalidate();
+				return;
 			}
+
+			pendingReloadRequest = true;
+
+			UiThread.RunOnIdle(() =>
+			{
+				using (new QuickTimer($"ReloadAll_{reloadCount++}:"))
+				{
+					// give the widget a chance to hear about the close before they are actually closed.
+					PopOutManager.SaveIfClosed = false;
+
+					WidescreenPanel.PreChangePanels.CallEvents(this, null);
+					MainView?.CloseAllChildren();
+					using (new QuickTimer("ReloadAll_AddElements"))
+					{
+						MainView?.CreateAndAddChildren();
+					}
+					PopOutManager.SaveIfClosed = true;
+					this.DoneReloadingAll?.CallEvents(null, null);
+				}
+
+				pendingReloadRequest = false;
+			});
 		}
 
 		static int reloadCount = 0;
-		private void DoReloadAll(GuiWidget drawingWidget, DrawEventArgs e)
-		{
-			UiThread.RunOnIdle(() =>
-			{
-				if (MainView != null)
-				{
-					using (new QuickTimer($"ReloadAll_{reloadCount++}:"))
-					{
-						// give the widget a chance to hear about the close before they are actually closed.
-						PopOutManager.SaveIfClosed = false;
-						WidescreenPanel.PreChangePanels.CallEvents(this, null);
-						MainView?.CloseAllChildren();
-						using (new QuickTimer("ReloadAll_AddElements"))
-						{
-							MainView?.AddElements();
-						}
-						PopOutManager.SaveIfClosed = true;
-						DoneReloadingAll?.CallEvents(null, null);
-					}
-
-					MainView.AfterDraw -= DoReloadAll;
-					pendingReloadRequest = false;
-				}
-			});
-		}
 
 		public void OnApplicationClosed()
 		{
 			ApplicationClosed?.Invoke(null, null);
 		}
 
-		static void LoadUITheme()
+		static void LoadOemOrDefaultTheme()
 		{
-			if (string.IsNullOrEmpty(UserSettings.Instance.get(UserSettingsKey.ActiveThemeName)))
+			ActiveTheme.SuspendEvents();
+
+			// if not check for the oem color and use it if set
+			// else default to "Blue - Light"
+			string oemColor = OemSettings.Instance.ThemeColor;
+			if (string.IsNullOrEmpty(oemColor))
 			{
-				string oemColor = OemSettings.Instance.ThemeColor;
-				if (string.IsNullOrEmpty(oemColor))
-				{
-					ActiveTheme.Instance = ActiveTheme.GetThemeColors("Blue - Light");
-				}
-				else
-				{
-					UserSettings.Instance.set(UserSettingsKey.ActiveThemeName, oemColor);
-					ActiveTheme.Instance = ActiveTheme.GetThemeColors(oemColor);
-				}
+				ActiveTheme.Instance = ActiveTheme.GetThemeColors("Blue - Light");
 			}
 			else
 			{
-				string name = UserSettings.Instance.get(UserSettingsKey.ActiveThemeName);
-				ActiveTheme.Instance = ActiveTheme.GetThemeColors(name);
+				ActiveTheme.Instance = ActiveTheme.GetThemeColors(oemColor);
 			}
+
+			ActiveTheme.ResumeEvents();
 		}
 
 		public static ApplicationController Instance
@@ -482,13 +467,19 @@ namespace MatterHackers.MatterControl
 					{
 						globalInstance = new ApplicationController();
 
-						// set the colors
-						LoadUITheme();
-						// This will initialize the theme for the first printer to load
-						ProfileManager.Reload();
+						// Set the default theme colors
+						LoadOemOrDefaultTheme();
+
+						// Accessing any property on ProfileManager will run the static constructor and spin up the ProfileManager instance
+						bool na = ProfileManager.Instance.IsGuestProfile;
 
 						if (UserSettings.Instance.DisplayMode == ApplicationDisplayType.Touchscreen)
 						{
+							// make sure that on touchscreen (due to lazy tabs) we initialize our stating parts and queue
+							var temp = new LibraryProviderSQLite(null, null, null, null);
+							// and make sure we have the check for print recovery wired up needed for lazy tabs.
+							var temp2 = PrintHistoryData.Instance;
+							// now bulid the ui
 							globalInstance.MainView = new TouchscreenView();
 						}
 						else
@@ -496,7 +487,7 @@ namespace MatterHackers.MatterControl
 							globalInstance.MainView = new DesktopView();
 						}
 
-						ActiveSliceSettings.ActivePrinterChanged.RegisterEvent((s, e) => ApplicationController.Instance.ReloadAll(null, null), ref globalInstance.unregisterEvents);
+						ActiveSliceSettings.ActivePrinterChanged.RegisterEvent((s, e) => ApplicationController.Instance.ReloadAll(), ref globalInstance.unregisterEvents);
 					}
 				}
 				return globalInstance;
@@ -511,29 +502,35 @@ namespace MatterHackers.MatterControl
 		public LibraryDataView CurrentLibraryDataView = null;
 		public void SwitchToPurchasedLibrary()
 		{
-			// Switch to the purchased library
-			LibraryProviderSelector libraryProviderSelector = CurrentLibraryDataView.CurrentLibraryProvider.GetRootProvider() as LibraryProviderSelector;
-			if (libraryProviderSelector != null)
+			if (CurrentLibraryDataView?.CurrentLibraryProvider?.GetRootProvider() != null)
 			{
-				LibraryProvider purchaseProvider = libraryProviderSelector.GetPurchasedLibrary();
-				UiThread.RunOnIdle(() =>
+				// Switch to the purchased library
+				LibraryProviderSelector libraryProviderSelector = CurrentLibraryDataView.CurrentLibraryProvider.GetRootProvider() as LibraryProviderSelector;
+				if (libraryProviderSelector != null)
 				{
-					CurrentLibraryDataView.CurrentLibraryProvider = purchaseProvider;
-				});
+					LibraryProvider purchaseProvider = libraryProviderSelector.GetPurchasedLibrary();
+					UiThread.RunOnIdle(() =>
+					{
+						CurrentLibraryDataView.CurrentLibraryProvider = purchaseProvider;
+					});
+				}
 			}
 		}
 
 		public void SwitchToSharedLibrary()
 		{
 			// Switch to the shared library
-			LibraryProviderSelector libraryProviderSelector = CurrentLibraryDataView.CurrentLibraryProvider.GetRootProvider() as LibraryProviderSelector;
-			if (libraryProviderSelector != null)
+			if (CurrentLibraryDataView?.CurrentLibraryProvider?.GetRootProvider() != null)
 			{
-				LibraryProvider sharedProvider = libraryProviderSelector.GetSharedLibrary();
-				UiThread.RunOnIdle(() =>
+				LibraryProviderSelector libraryProviderSelector = CurrentLibraryDataView.CurrentLibraryProvider.GetRootProvider() as LibraryProviderSelector;
+				if (libraryProviderSelector != null)
 				{
-					CurrentLibraryDataView.CurrentLibraryProvider = sharedProvider;
-				});
+					LibraryProvider sharedProvider = libraryProviderSelector.GetSharedLibrary();
+					UiThread.RunOnIdle(() =>
+					{
+						CurrentLibraryDataView.CurrentLibraryProvider = sharedProvider;
+					});
+				}
 			}
 		}
 
@@ -545,37 +542,33 @@ namespace MatterHackers.MatterControl
 			CloudSyncStatusChanged.CallEvents(this, new CloudSyncEventArgs() { IsAuthenticated = userAuthenticated });
 
 			// Only fire UserChanged if it actually happened - prevents runaway positive feedback loop
-			if (AuthenticationData.Instance.ActiveSessionUsername != AuthenticationData.Instance.LastSessionUsername)
+			if (!string.IsNullOrEmpty(AuthenticationData.Instance.ActiveSessionUsername)
+				&& AuthenticationData.Instance.ActiveSessionUsername != AuthenticationData.Instance.LastSessionUsername)
 			{
+				// only set it if it is an actual user name
 				AuthenticationData.Instance.LastSessionUsername = AuthenticationData.Instance.ActiveSessionUsername;
-				UserChanged();
 			}
+
+			UserChanged();
 		}
 
 		// Called after every startup and at the completion of every authentication change
 		public void UserChanged()
 		{
-			ProfileManager.Reload();
-
-			var profileManager = ProfileManager.Instance;
+			ProfileManager.ReloadActiveUser();
 
 			// Ensure SQLite printers are imported
-			profileManager.EnsurePrintersImported();
+			ProfileManager.Instance.EnsurePrintersImported();
 
-			var guestDB = ProfileManager.LoadGuestDB();
+			var guest = ProfileManager.Load("guest");
 
 			// If profiles.json was created, run the import wizard to pull in any SQLite printers
-			if (guestDB?.Profiles != null && guestDB.Profiles.Any() && !profileManager.IsGuestProfile && !profileManager.PrintersImported)
+			if (guest?.Profiles?.Any() == true
+				&& !ProfileManager.Instance.IsGuestProfile 
+				&& !ProfileManager.Instance.PrintersImported)
 			{
-				var wizardPage = new CopyGuestProfilesToUser(() =>
-				{
-					// On success, set state indicating import has been run and update ProfileManager state
-					profileManager.PrintersImported = true;
-					profileManager.Save();
-				});
-
 				// Show the import printers wizard
-				WizardWindow.Show("/CopyGuestProfiles", "Copy Printers", wizardPage);
+				WizardWindow.Show<CopyGuestProfilesToUser>("/CopyGuestProfiles", "Copy Printers");
 			}
 		}
 
@@ -611,7 +604,7 @@ namespace MatterHackers.MatterControl
                     }
                     else
                     {
-                        ApplicationController.SyncPrinterProfiles.Invoke(null).ContinueWith((task) =>
+                        ApplicationController.SyncPrinterProfiles.Invoke("ApplicationController.OnLoadActions()", null).ContinueWith((task) =>
                         {
                             RunSetupIfRequired();
                         });
@@ -678,6 +671,62 @@ namespace MatterHackers.MatterControl
 		{
 			PrintLibraryWidget.Reload();
 		}
+
+		/// <summary>
+		/// Download an image from the web into the specified ImageBuffer
+		/// </summary>
+		/// <param name="uri"></param>
+		public void DownloadToImageAsync(ImageBuffer imageToLoadInto, string uriToLoad, bool scaleImage, IRecieveBlenderByte scalingBlender = null)
+		{
+			if (scalingBlender == null)
+			{
+				scalingBlender = new BlenderBGRA();
+			}
+
+			WebClient client = new WebClient();
+			client.DownloadDataCompleted += (object sender, DownloadDataCompletedEventArgs e) =>
+			{
+				try // if we get a bad result we can get a target invocation exception. In that case just don't show anything
+				{
+					// scale the loaded image to the size of the target image
+					byte[] raw = e.Result;
+					Stream stream = new MemoryStream(raw);
+					ImageBuffer unScaledImage = new ImageBuffer(10, 10);
+					if (!scaleImage)
+					{
+						StaticData.Instance.LoadImageData(stream, unScaledImage);
+						// If the source image (the one we downloaded) is more than twice as big as our dest image.
+						while (unScaledImage.Width > imageToLoadInto.Width * 2)
+						{
+							// The image sampler we use is a 2x2 filter so we need to scale by a max of 1/2 if we want to get good results.
+							// So we scale as many times as we need to to get the Image to be the right size.
+							// If this were going to be a non-uniform scale we could do the x and y separately to get better results.
+							ImageBuffer halfImage = new ImageBuffer(unScaledImage.Width / 2, unScaledImage.Height / 2, 32, scalingBlender);
+							halfImage.NewGraphics2D().Render(unScaledImage, 0, 0, 0, halfImage.Width / (double)unScaledImage.Width, halfImage.Height / (double)unScaledImage.Height);
+							unScaledImage = halfImage;
+						}
+						imageToLoadInto.NewGraphics2D().Render(unScaledImage, 0, 0, 0, imageToLoadInto.Width / (double)unScaledImage.Width, imageToLoadInto.Height / (double)unScaledImage.Height);
+					}
+					else
+					{
+						StaticData.Instance.LoadImageData(stream, imageToLoadInto);
+					}
+					imageToLoadInto.MarkImageChanged();
+				}
+				catch
+				{
+				}
+			};
+
+			try
+			{
+				client.DownloadDataAsync(new Uri(uriToLoad));
+			}
+			catch
+			{
+			}
+		}
+
 	}
 
 	public class SyncReportType

@@ -27,12 +27,12 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the FreeBSD Project.
 */
 
-using MatterHackers.Agg;
-using MatterHackers.VectorMath;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using MatterHackers.Agg;
+using MatterHackers.VectorMath;
 
 namespace MatterHackers.MatterControl.SlicerConfiguration
 {
@@ -42,20 +42,23 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 		private HashSet<string> matterSliceSettingNames;
 
-		private MappedSetting[] matterSliceSettings;
+		private MappedSetting[] mappedSettings;
 
 		// Singleton use only - prevent external construction
 		private EngineMappingsMatterSlice() : base("MatterSlice")
 		{
-			matterSliceSettings = new MappedSetting[]
+			mappedSettings = new MappedSetting[]
 			{
 				new AsCountOrDistance("bottom_solid_layers", "numberOfBottomLayers", SettingsKey.layer_height),
 				new AsCountOrDistance("perimeters", "numberOfPerimeters", SettingsKey.nozzle_diameter),
+				new AsCountOrDistance("raft_extra_distance_around_part", "raftExtraDistanceAroundPart", SettingsKey.nozzle_diameter),
+				new AsCountOrDistance("skirts", "numberOfSkirtLoops", SettingsKey.nozzle_diameter),
 				new AsCountOrDistance("support_material_interface_layers", "supportInterfaceLayers", SettingsKey.layer_height),
 				new AsCountOrDistance("top_solid_layers", "numberOfTopLayers", SettingsKey.layer_height),
-				new AsPercentOfReferenceOrDirect("external_perimeter_extrusion_width", "outsidePerimeterExtrusionWidth", SettingsKey.nozzle_diameter),
+				new AsCountOrDistance("brims", "numberOfBrimLoops", SettingsKey.nozzle_diameter),
+				new AsPercentOfReferenceOrDirect(SettingsKey.external_perimeter_extrusion_width, SettingsKey.external_perimeter_extrusion_width, SettingsKey.nozzle_diameter),
 				new AsPercentOfReferenceOrDirect("external_perimeter_speed", "outsidePerimeterSpeed", "perimeter_speed"),
-				new AsPercentOfReferenceOrDirect("first_layer_speed", "firstLayerSpeed", "infill_speed"),
+				new AsPercentOfReferenceOrDirect(SettingsKey.first_layer_speed, "firstLayerSpeed", "infill_speed"),
 				new AsPercentOfReferenceOrDirect("raft_print_speed", "raftPrintSpeed", "infill_speed"),
 				new AsPercentOfReferenceOrDirect("top_solid_infill_speed", "topInfillSpeed", "infill_speed"),
 				new AsPercentOfReferenceOrDirect(SettingsKey.first_layer_extrusion_width, "firstLayerExtrusionWidth", SettingsKey.nozzle_diameter),
@@ -71,7 +74,6 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				new MapFirstValue("retract_speed", "retractionSpeed"),
 				new MappedSetting("bridge_fan_speed", "bridgeFanSpeedPercent"),
 				new MappedSetting("bridge_speed", "bridgeSpeed"),
-				new MappedSetting("brims", "numberOfBrimLoops"),
 				new MappedSetting("disable_fan_first_layers", "firstLayerToAllowFan"),
 				new MappedSetting("extrusion_multiplier", "extrusionMultiplier"),
 				new MappedSetting("fill_angle", "infillStartingAngle"),
@@ -85,12 +87,10 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				new MappedSetting("min_print_speed", "minimumPrintingSpeed"),
 				new MappedSetting("perimeter_speed", "insidePerimetersSpeed"),
 				new MappedSetting("raft_air_gap", "raftAirGap"),
-				new MappedSetting("raft_extra_distance_around_part", "raftExtraDistanceAroundPart"),
 				new MappedSetting("raft_fan_speed_percent", "raftFanSpeedPercent"),
 				new MappedSetting("retract_length_tool_change", "retractionOnExtruderSwitch"),
 				new MappedSetting("retract_restart_extra_toolchange", "unretractExtraOnExtruderSwitch"),
 				new MappedSetting("skirt_distance", "skirtDistanceFromObject"),
-				new MappedSetting("skirts", "numberOfSkirtLoops"),
 				new MappedSetting("slowdown_below_layer_time", "minimumLayerTimeSeconds"),
 				new MappedSetting("support_air_gap", "supportAirGap"),
 				new MappedSetting("support_material_infill_angle", "supportInfillStartingAngle"),
@@ -118,6 +118,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				new MappedToBoolString("wipe", "wipeAfterRetraction"),
 				new MappedToBoolString(SettingsKey.center_part_on_bed, "centerObjectInXy"),
 				new MappedToBoolString(SettingsKey.expand_thin_walls, "expandThinWalls"),
+				new MappedToBoolString(SettingsKey.merge_overlapping_lines, "MergeOverlappingLines"),
 				new MappedToBoolString(SettingsKey.fill_thin_gaps, "fillThinGaps"),
 				new MappedToBoolString(SettingsKey.spiral_vase, "continuousSpiralOuterPerimeter"),
 				new MapPositionToPlaceObjectCenter(SettingsKey.print_center, "positionToPlaceObjectCenter"),
@@ -131,24 +132,19 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				new ValuePlusConstant("support_material_interface_extruder", "supportInterfaceExtruder", -1),
 				new VisibleButNotMappedToEngine("extruder_count"),
 				new VisibleButNotMappedToEngine("extruders_share_temperature"),
+				new VisibleButNotMappedToEngine(SettingsKey.baby_step_z_offset),
 				new VisibleButNotMappedToEngine("g0"),
 				new VisibleButNotMappedToEngine("solid_shell"),
 			};
 
-			matterSliceSettingNames = new HashSet<string>(matterSliceSettings.Select(m => m.CanonicalSettingsName));
+			matterSliceSettingNames = new HashSet<string>(mappedSettings.Select(m => m.CanonicalSettingsName));
 		}
 
-		public override bool MapContains(string canonicalSettingsName)
-		{
-			return matterSliceSettingNames.Contains(canonicalSettingsName)
-				|| base.applicationLevelSettings.Contains(canonicalSettingsName);
-		}
-
-		public static void WriteMatterSliceSettingsFile(string outputFilename)
+		public static void WriteSliceSettingsFile(string outputFilename)
 		{
 			using (StreamWriter sliceSettingsFile = new StreamWriter(outputFilename))
 			{
-				foreach (MappedSetting mappedSetting in Instance.matterSliceSettings)
+				foreach (MappedSetting mappedSetting in Instance.mappedSettings)
 				{
 					if (mappedSetting.Value != null)
 					{
@@ -156,6 +152,12 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 					}
 				}
 			}
+		}
+
+		public override bool MapContains(string canonicalSettingsName)
+		{
+			return matterSliceSettingNames.Contains(canonicalSettingsName)
+				|| base.applicationLevelSettings.Contains(canonicalSettingsName);
 		}
 
 		public class ExtruderOffsets : MappedSetting
@@ -216,6 +218,81 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 		}
 
+		public class GCodeForSlicer : InjectGCodeCommands
+		{
+			public GCodeForSlicer(string canonicalSettingsName, string exportedName)
+				: base(canonicalSettingsName, exportedName)
+			{
+			}
+
+			public override string Value => GCodeProcessing.ReplaceMacroValues(base.Value.Replace("\n", "\\n"));
+		}
+
+		public class InfillTranslator : MappedSetting
+		{
+			public InfillTranslator(string canonicalSettingsName, string exportedName)
+				: base(canonicalSettingsName, exportedName)
+			{
+			}
+
+			public override string Value
+			{
+				get
+				{
+					double infillRatio0To1 = ParseDouble(base.Value);
+					// 400 = solid (extruder width)
+					double nozzle_diameter = ParseDoubleFromRawValue(SettingsKey.nozzle_diameter);
+					double linespacing = 1000;
+					if (infillRatio0To1 > .01)
+					{
+						linespacing = nozzle_diameter / infillRatio0To1;
+					}
+
+					return ((int)(linespacing * 1000)).ToString();
+				}
+			}
+		}
+
+		public class MapPositionToPlaceObjectCenter : MappedSetting
+		{
+			public MapPositionToPlaceObjectCenter(string canonicalSettingsName, string exportedName)
+				: base(canonicalSettingsName, exportedName)
+			{
+			}
+
+			public override string Value
+			{
+				get
+				{
+					Vector2 PrinteCenter = ActiveSliceSettings.Instance.GetValue<Vector2>(SettingsKey.print_center);
+
+					return "[{0},{1}]".FormatWith(PrinteCenter.x, PrinteCenter.y);
+				}
+			}
+		}
+
+		public class SkirtLengthMapping : MappedSetting
+		{
+			public SkirtLengthMapping(string canonicalSettingsName, string exportedName)
+				: base(canonicalSettingsName, exportedName)
+			{
+			}
+
+			public override string Value
+			{
+				get
+				{
+					double lengthToExtrudeMm = ParseDouble(base.Value);
+					// we need to convert mm of filament to mm of extrusion path
+					double amountOfFilamentCubicMms = ActiveSliceSettings.Instance.GetValue<double>(SettingsKey.filament_diameter) * MathHelper.Tau * lengthToExtrudeMm;
+					double extrusionSquareSize = ActiveSliceSettings.Instance.GetValue<double>(SettingsKey.first_layer_height) * ActiveSliceSettings.Instance.GetValue<double>(SettingsKey.nozzle_diameter);
+					double lineLength = amountOfFilamentCubicMms / extrusionSquareSize;
+
+					return lineLength.ToString();
+				}
+			}
+		}
+
 		public class SupportExtrusionWidth : MappedSetting
 		{
 			public SupportExtrusionWidth(string canonicalSettingsName, string exportedName)
@@ -264,81 +341,6 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 
 			public override string Value => (ParseDouble(base.Value) + constant).ToString();
-		}
-
-		public class InfillTranslator : MappedSetting
-		{
-			public InfillTranslator(string canonicalSettingsName, string exportedName)
-				: base(canonicalSettingsName, exportedName)
-			{
-			}
-
-			public override string Value
-			{
-				get
-				{
-					double infillRatio0To1 = ParseDouble(base.Value);
-					// 400 = solid (extruder width)
-					double nozzle_diameter = ParseDoubleFromRawValue(SettingsKey.nozzle_diameter);
-					double linespacing = 1000;
-					if (infillRatio0To1 > .01)
-					{
-						linespacing = nozzle_diameter / infillRatio0To1;
-					}
-
-					return ((int)(linespacing * 1000)).ToString();
-				}
-			}
-		}
-
-		public class GCodeForSlicer : InjectGCodeCommands
-		{
-			public GCodeForSlicer(string canonicalSettingsName, string exportedName)
-				: base(canonicalSettingsName, exportedName)
-			{
-			}
-
-			public override string Value => GCodeProcessing.ReplaceMacroValues(base.Value.Replace("\n", "\\n"));
-		}
-
-		public class MapPositionToPlaceObjectCenter : MappedSetting
-		{
-			public MapPositionToPlaceObjectCenter(string canonicalSettingsName, string exportedName)
-				: base(canonicalSettingsName, exportedName)
-			{
-			}
-
-			public override string Value
-			{
-				get
-				{
-					Vector2 PrinteCenter = ActiveSliceSettings.Instance.GetValue<Vector2>(SettingsKey.print_center);
-
-					return "[{0},{1}]".FormatWith(PrinteCenter.x, PrinteCenter.y);
-				}
-			}
-		}
-
-		public class SkirtLengthMapping : MappedSetting
-		{
-			public SkirtLengthMapping(string canonicalSettingsName, string exportedName)
-				: base(canonicalSettingsName, exportedName)
-			{
-			}
-
-			public override string Value
-			{
-				get
-				{
-					double lengthToExtrudeMm = ParseDouble(base.Value);
-					// we need to convert mm of filament to mm of extrusion path
-					double amountOfFilamentCubicMms = ActiveSliceSettings.Instance.GetValue<double>(SettingsKey.filament_diameter) * MathHelper.Tau * lengthToExtrudeMm;
-					double extrusionSquareSize = ActiveSliceSettings.Instance.GetValue<double>(SettingsKey.first_layer_height) * ActiveSliceSettings.Instance.GetValue<double>(SettingsKey.nozzle_diameter);
-					double lineLength = amountOfFilamentCubicMms / extrusionSquareSize;
-
-					return lineLength.ToString();
-				}
-			}
 		}
 	}
 }

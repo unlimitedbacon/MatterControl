@@ -40,6 +40,7 @@ using MatterHackers.Agg.PlatformAbstract;
 using MatterHackers.SerialPortCommunication.FrostedSerial;
 using MatterHackers.Agg.UI;
 using System.Threading.Tasks;
+using MatterHackers.Localizations;
 
 namespace MatterHackers.MatterControl.SlicerConfiguration
 {
@@ -49,8 +50,9 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 	{
 		public static RootedObjectEventHandler ActivePrinterChanged = new RootedObjectEventHandler();
 		public static RootedObjectEventHandler ActiveProfileModified = new RootedObjectEventHandler();
+		public static RootedObjectEventHandler SettingChanged = new RootedObjectEventHandler();
 
-		private static PrinterSettings activeInstance = null;
+		private static PrinterSettings activeInstance = PrinterSettings.Empty;
 		public static PrinterSettings Instance
 		{
 			get
@@ -59,38 +61,44 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 			set
 			{
-				if (activeInstance != value)
+				if (activeInstance != value 
+					&& value != null)
 				{
-					// If we have an active printer, run Disable otherwise skip to prevent empty ActiveSliceSettings due to null ActivePrinter
-					if (activeInstance != null)
+					// If we have an active printer, run Disable
+					if (activeInstance != PrinterSettings.Empty)
 					{
 						PrinterConnectionAndCommunication.Instance.Disable();
 					}
 
 					activeInstance = value;
-					if (activeInstance != null)
-					{
-						BedSettings.SetMakeAndModel(activeInstance.GetValue(SettingsKey.make), activeInstance.GetValue(SettingsKey.model));
-					}
 
-					SwitchToPrinterTheme(MatterControlApplication.IsLoading);
+					BedSettings.SetMakeAndModel(activeInstance.GetValue(SettingsKey.make), activeInstance.GetValue(SettingsKey.model));
+
+					SwitchToPrinterTheme(!MatterControlApplication.IsLoading);
 					if (!MatterControlApplication.IsLoading)
 					{
 						OnActivePrinterChanged(null);
 
-						if (ActiveSliceSettings.Instance.PrinterSelected)
+						if (ActiveSliceSettings.Instance.PrinterSelected
+							&& Instance.GetValue<bool>(SettingsKey.auto_connect))
 						{
-							if (Instance.GetValue<bool>(SettingsKey.auto_connect))
+							UiThread.RunOnIdle(() =>
 							{
-								UiThread.RunOnIdle(() =>
-								{
-									//PrinterConnectionAndCommunication.Instance.HaltConnectionThread();
-									PrinterConnectionAndCommunication.Instance.ConnectToActivePrinter();
-								}, 2);
-							}
+								PrinterConnectionAndCommunication.Instance.ConnectToActivePrinter();
+							}, 2);
 						}
 					}
 				}
+			}
+		}
+
+		static public void OnSettingsChanged(SliceSettingData settingData)
+		{
+			SettingChanged.CallEvents(null, new StringEventArgs(settingData.SlicerConfigName));
+
+			if (settingData.ReloadUiWhenChanged)
+			{
+				UiThread.RunOnIdle(ApplicationController.Instance.ReloadAll);
 			}
 		}
 
@@ -100,7 +108,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 			activeInstance = updatedProfile;
 
-			SliceSettingsWidget.SettingChanged.CallEvents(null, new StringEventArgs(SettingsKey.printer_name));
+			ActiveSliceSettings.SettingChanged.CallEvents(null, new StringEventArgs(SettingsKey.printer_name));
 
 			if (themeChanged)
 			{
@@ -119,49 +127,28 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		/// </summary>
 		public static void SwitchToPrinterTheme(bool doReloadEvent)
 		{
-			if (ActiveSliceSettings.Instance != null)
+			if (ActiveSliceSettings.Instance.PrinterSelected)
 			{
-				if (ActiveSliceSettings.Instance.PrinterSelected)
+				//Attempt to load userSetting theme as default
+				string activeThemeName = ActiveSliceSettings.Instance.GetValue(SettingsKey.active_theme_name);
+				if (!string.IsNullOrEmpty(activeThemeName))
 				{
-					//Attempt to load userSetting theme as default
-					string activeThemeName = UserSettings.Instance.get(UserSettingsKey.ActiveThemeName);
-					if(string.IsNullOrEmpty(activeThemeName))
+					if (!doReloadEvent)
 					{
-						activeThemeName = "Blue - Light";
+						ActiveTheme.SuspendEvents();
 					}
-					if (ActiveSliceSettings.Instance.Contains(SettingsKey.active_theme_name))
-					{
-						activeThemeName = ActiveSliceSettings.Instance.GetValue(SettingsKey.active_theme_name);
-						if (string.IsNullOrEmpty(activeThemeName))
-						{
-							activeThemeName = "Blue - Light";
-						}
-						if (!doReloadEvent)
-						{
-							ActiveTheme.SuspendEvents();
-						}
-					}
-					else
-					{
-						//If the active printer has no theme we set it to the default so that it does not suddenly change colors later when another printer's color is changed
-						ActiveSliceSettings.Instance.SetValue(SettingsKey.active_theme_name, activeThemeName);
-					}
+
 					ActiveTheme.Instance = ActiveTheme.GetThemeColors(activeThemeName);
+
 					ActiveTheme.ResumeEvents();
 				}
 			}
 		}
 
-		static ActiveSliceSettings()
-		{
-			// Load last profile or fall back to empty
-			Instance = ProfileManager.Instance?.LoadLastProfileWithoutRecovery() ?? ProfileManager.LoadEmptyProfile();
-		}
-
 		internal static async Task SwitchToProfile(string printerID)
 		{
-			ProfileManager.Instance.SetLastProfile(printerID);
-			Instance = (await ProfileManager.LoadProfileAsync(printerID)) ?? ProfileManager.LoadEmptyProfile();
+			ProfileManager.Instance.LastProfileID = printerID;
+			Instance = (await ProfileManager.LoadProfileAsync(printerID)) ?? PrinterSettings.Empty;
 		}
 
 		private static void OnActivePrinterChanged(EventArgs e)

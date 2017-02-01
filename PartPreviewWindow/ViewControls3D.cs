@@ -131,8 +131,8 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 			textImageButtonFactory.pressedTextColor = ActiveTheme.Instance.PrimaryTextColor;
 
 			BackgroundColor = new RGBA_Bytes(0, 0, 0, 120);
-			textImageButtonFactory.FixedHeight = buttonHeight;
-			textImageButtonFactory.FixedWidth = buttonHeight;
+			textImageButtonFactory.FixedHeight = buttonHeight * GuiWidget.DeviceScale;
+			textImageButtonFactory.FixedWidth = buttonHeight * GuiWidget.DeviceScale;
 			textImageButtonFactory.AllowThemeToAdjustImage = false;
 			textImageButtonFactory.checkedBorderColor = RGBA_Bytes.White;
 
@@ -201,7 +201,7 @@ namespace MatterHackers.MatterControl.PartPreviewWindow
 			ActiveTheme.ThemeChanged.RegisterEvent(ThemeChanged, ref unregisterEvents);
 		}
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		public override void OnClosed(EventArgs e)
 		{

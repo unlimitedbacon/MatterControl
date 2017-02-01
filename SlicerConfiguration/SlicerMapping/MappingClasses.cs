@@ -31,6 +31,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using MatterHackers.Agg;
+using MatterHackers.MeshVisualizer;
+using MatterHackers.VectorMath;
 
 namespace MatterHackers.MatterControl.SlicerConfiguration
 {
@@ -39,7 +41,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		private static MappedSetting[] replaceWithSettingsStrings = new MappedSetting[]
         {
 			// Have a mapping so that MatterSlice while always use a setting that can be set. (the user cannot set first_layer_bedTemperature in MatterSlice)
-			new AsPercentOfReferenceOrDirect("first_layer_speed", "first_layer_speed", "infill_speed", 60),
+			new AsPercentOfReferenceOrDirect(SettingsKey.first_layer_speed, "first_layer_speed", "infill_speed", 60),
 			new AsPercentOfReferenceOrDirect("external_perimeter_speed","external_perimeter_speed", "perimeter_speed", 60),
 			new AsPercentOfReferenceOrDirect("raft_print_speed", "raft_print_speed", "infill_speed", 60),
 			new MappedSetting(SettingsKey.bed_remove_part_temperature,SettingsKey.bed_remove_part_temperature),
@@ -113,6 +115,57 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		public string CanonicalSettingsName { get; }
 
 		public virtual string Value => ActiveSliceSettings.Instance.GetValue(CanonicalSettingsName);
+	}
+
+	public class Slice3rBedShape : MappedSetting
+	{
+		public Slice3rBedShape(string canonicalSettingsName)
+			: base(canonicalSettingsName, canonicalSettingsName)
+		{
+		}
+
+		public override string Value
+		{
+			get
+			{
+				Vector2 printCenter = ActiveSliceSettings.Instance.GetValue<Vector2>(SettingsKey.print_center);
+				Vector2 bedSize = ActiveSliceSettings.Instance.GetValue<Vector2>(SettingsKey.bed_size);
+				switch (ActiveSliceSettings.Instance.GetValue<BedShape>(SettingsKey.bed_shape))
+				{
+					case BedShape.Circular:
+						{
+							int numPoints = 10;
+							double angle = MathHelper.Tau / numPoints;
+							string bedString = "";
+							bool first = true;
+							for (int i = 0; i < numPoints; i++)
+							{
+								if(!first)
+								{
+									bedString += ",";
+								}
+								double x = Math.Cos(angle*i);
+								double y = Math.Sin(angle*i);
+								bedString += $"{printCenter.x + x * bedSize.x / 2:0.####}x{printCenter.y + y * bedSize.y / 2:0.####}";
+								first = false;
+							}
+							return bedString;
+						}
+//bed_shape = 99.4522x10.4528,97.8148x20.7912,95.1057x30.9017,91.3545x40.6737,86.6025x50,80.9017x58.7785,74.3145x66.9131,66.9131x74.3145,58.7785x80.9017,50x86.6025,40.6737x91.3545,30.9017x95.1057,20.7912x97.8148,10.4528x99.4522,0x100,-10.4528x99.4522,-20.7912x97.8148,-30.9017x95.1057,-40.6737x91.3545,-50x86.6025,-58.7785x80.9017,-66.9131x74.3145,-74.3145x66.9131,-80.9017x58.7785,-86.6025x50,-91.3545x40.6737,-95.1057x30.9017,-97.8148x20.7912,-99.4522x10.4528,-100x0,-99.4522x - 10.4528,-97.8148x - 20.7912,-95.1057x - 30.9017,-91.3545x - 40.6737,-86.6025x - 50,-80.9017x - 58.7785,-74.3145x - 66.9131,-66.9131x - 74.3145,-58.7785x - 80.9017,-50x - 86.6025,-40.6737x - 91.3545,-30.9017x - 95.1057,-20.7912x - 97.8148,-10.4528x - 99.4522,0x - 100,10.4528x - 99.4522,20.7912x - 97.8148,30.9017x - 95.1057,40.6737x - 91.3545,50x - 86.6025,58.7785x - 80.9017,66.9131x - 74.3145,74.3145x - 66.9131,80.9017x - 58.7785,86.6025x - 50,91.3545x - 40.6737,95.1057x - 30.9017,97.8148x - 20.7912,99.4522x - 10.4528,100x0
+
+					case BedShape.Rectangular:
+					default:
+						{
+							//bed_shape = 0x0,200x0,200x200,0x200
+							string bedString = $"{printCenter.x - bedSize.x / 2}x{printCenter.y - bedSize.y / 2}";
+							bedString += $",{printCenter.x + bedSize.x / 2}x{printCenter.y - bedSize.y / 2}";
+							bedString += $",{printCenter.x + bedSize.x / 2}x{printCenter.y + bedSize.y / 2}";
+							bedString += $",{printCenter.x - bedSize.x / 2}x{printCenter.y + bedSize.y / 2}";
+							return bedString;
+						}
+				}
+			}
+		}
 	}
 
 	public class MapFirstValue : MappedSetting
@@ -204,7 +257,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				AddDefaultIfNotPresent(preStartGCode, setBedTempString, preStartGCodeLines, "wait for bed temperature to be reached");
 			}
 
-			int numberOfHeatedExtruders = ActiveSliceSettings.Instance.GetValue<int>(SettingsKey.extruder_count);
+			int numberOfHeatedExtruders = ActiveSliceSettings.Instance.Helpers.NumberOfHotEnds();
 
 			// Start heating all the extruder that we are going to use.
 			for (int extruderIndex0Based = 0; extruderIndex0Based < numberOfHeatedExtruders; extruderIndex0Based++)
@@ -269,19 +322,48 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 			int numberOfHeatedExtruders = ActiveSliceSettings.Instance.GetValue<int>(SettingsKey.extruder_count);
 
-			// don't set the extruders to heating if we already waited for them to reach temp
+			// don't set extruder 0 to heating if we already waited for it to reach temp
 			if (ActiveSliceSettings.Instance.GetValue(SettingsKey.heat_extruder_before_homing) != "1")
 			{
-				for (int extruderIndex0Based = 0; extruderIndex0Based < numberOfHeatedExtruders; extruderIndex0Based++)
+				if (extrudersUsed[0])
 				{
-					if (extrudersUsed.Count > extruderIndex0Based
+					double materialTemperature = ActiveSliceSettings.Instance.Helpers.ExtruderTemperature(0);
+					if (materialTemperature != 0)
+					{
+						string setTempString = $"M109 T0 S{materialTemperature}";
+						AddDefaultIfNotPresent(postStartGCode, setTempString, postStartGCodeLines, string.Format("wait for extruder {0} to reach temperature", 1));
+					}
+				}
+			}
+
+			if (extrudersUsed.Count > 1)
+			{
+				// start all the extruders heating
+				for (int extruderIndex0Based = 1; extruderIndex0Based < numberOfHeatedExtruders; extruderIndex0Based++)
+				{
+					if (extruderIndex0Based < extrudersUsed.Count
 						&& extrudersUsed[extruderIndex0Based])
 					{
 						double materialTemperature = ActiveSliceSettings.Instance.Helpers.ExtruderTemperature(extruderIndex0Based);
 						if (materialTemperature != 0)
 						{
-							string setTempString = "M109 T{0} S{1}".FormatWith(extruderIndex0Based, materialTemperature);
-							AddDefaultIfNotPresent(postStartGCode, setTempString, postStartGCodeLines, string.Format("wait for extruder {0} to reach temperature", extruderIndex0Based + 1));
+							// always heat the extruders that are used beyond extruder 0
+							postStartGCode.Add($"M104 T{extruderIndex0Based} S{materialTemperature} ; Start heating extruder{extruderIndex0Based+1}");
+						}
+					}
+				}
+
+				// wait for them to finish
+				for (int extruderIndex0Based = 1; extruderIndex0Based < numberOfHeatedExtruders; extruderIndex0Based++)
+				{
+					if (extruderIndex0Based < extrudersUsed.Count
+						&& extrudersUsed[extruderIndex0Based])
+					{
+						double materialTemperature = ActiveSliceSettings.Instance.Helpers.ExtruderTemperature(extruderIndex0Based);
+						if (materialTemperature != 0)
+						{
+							// always heat the extruders that are used beyond extruder 0
+							postStartGCode.Add($"M109 T{extruderIndex0Based} S{materialTemperature} ; Finish heating extruder{extruderIndex0Based + 1}");
 						}
 					}
 				}

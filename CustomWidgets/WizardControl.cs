@@ -106,19 +106,20 @@ namespace MatterHackers.MatterControl
 				buttonBar.HAnchor = Agg.UI.HAnchor.ParentLeftRight;
 				buttonBar.Padding = new BorderDouble(0, 3);
 
-				backButton = textImageButtonFactory.Generate(LocalizedString.Get("Back"), centerText: true);
-				backButton.Click += new EventHandler(back_Click);
+				backButton = textImageButtonFactory.Generate("Back".Localize(), centerText: true);
+				backButton.Click += back_Click;
 
-				nextButton = textImageButtonFactory.Generate(LocalizedString.Get("Next"), centerText: true);
+				nextButton = textImageButtonFactory.Generate("Next".Localize(), centerText: true);
 				nextButton.Name = "Next Button";
-				nextButton.Click += new EventHandler(next_Click);
+				nextButton.Click += next_Click;
 
-				doneButton = textImageButtonFactory.Generate(LocalizedString.Get("Done"), centerText: true);
+				doneButton = textImageButtonFactory.Generate("Done".Localize(), centerText: true);
 				doneButton.Name = "Done Button";
 				doneButton.Click += done_Click;
 
 				cancelButton = textImageButtonFactory.Generate("Cancel".Localize(), centerText: true);
 				cancelButton.Click += done_Click;
+				cancelButton.Name = "Cancel Button";
 
 				buttonBar.AddChild(backButton);
 				buttonBar.AddChild(nextButton);
@@ -151,7 +152,7 @@ namespace MatterHackers.MatterControl
 
 		public override void OnClosed(EventArgs e)
 		{
-			ApplicationController.Instance.ReloadAll(null, null);
+			ApplicationController.Instance.ReloadAll();
 			base.OnClosed(e);
 		}
 

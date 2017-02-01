@@ -74,7 +74,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		{
 			this.presetsContext = presetsContext;
 			this.AlwaysOnTopOfMain = true;
-			this.Title = LocalizedString.Get("Slice Presets Editor");
+			this.Title = "Slice Presets Editor".Localize();
 			this.MinimumSize = new Vector2(640, 480);
 			this.AnchorAll();
 
@@ -137,7 +137,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			presetNameInput.ActualTextEditWidget.EditComplete += (s, e) =>
 			{
 				ActiveSliceSettings.Instance.SetValue(SettingsKey.layer_name, presetNameInput.Text, presetsContext.PersistenceLayer);
-				SliceSettingsWidget.SettingChanged.CallEvents(null, new StringEventArgs(SettingsKey.layer_name));
+				ActiveSliceSettings.SettingChanged.CallEvents(null, new StringEventArgs(SettingsKey.layer_name));
 			};
 
 			topRow.AddChild(presetNameInput);
@@ -155,10 +155,10 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				ActiveSliceSettings.Instance.BaseLayer
 			};
 
-			var settingsWidget = new SliceSettingsWidget(layerCascade, presetsContext.LayerType);
-			settingsWidget.settingsControlBar.Visible = false;
-
-			return settingsWidget;
+			return new SliceSettingsWidget(layerCascade, presetsContext.LayerType)
+			{
+				ShowControlBar = false
+			};
 		}
 
 		private string GetNonCollidingName(string profileName, IEnumerable<string> existingNames)

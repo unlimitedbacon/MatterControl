@@ -72,7 +72,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				settingsDetailSelector.SelectedValue = "Advanced";
 			}
 
-			settingsDetailSelector.SelectionChanged += (s, e) => RebuildSlicerSettings(null, null); ;
+			settingsDetailSelector.SelectionChanged += (s, e) => RebuildSlicerSettings(null, null);
 			settingsDetailSelector.VAnchor = VAnchor.ParentCenter;
 			settingsDetailSelector.Margin = new BorderDouble(5, 3);
 			settingsDetailSelector.BorderColor = new RGBA_Bytes(ActiveTheme.Instance.SecondaryTextColor, 100);
@@ -112,12 +112,12 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			sliceOptionsMenuDropList.AddItem("Import".Localize()).Selected += (s, e) => { ImportSettingsMenu_Click(); };
 			sliceOptionsMenuDropList.AddItem("Export".Localize()).Selected += (s, e) => { WizardWindow.Show<ExportSettingsPage>("ExportSettingsPage", "Export Settings"); };
 
-			MenuItem settingsHistory = sliceOptionsMenuDropList.AddItem("Settings History".Localize());
-			settingsHistory.Selected += (s, e) => { WizardWindow.Show<PrinterProfileHistoryPage>("PrinterProfileHistory", "Settings History"); };
+			MenuItem settingsHistory = sliceOptionsMenuDropList.AddItem("Restore Settings".Localize());
+			settingsHistory.Selected += (s, e) => { WizardWindow.Show<PrinterProfileHistoryPage>("PrinterProfileHistory", "Restore Settings"); };
 
 			settingsHistory.Enabled = !string.IsNullOrEmpty(AuthenticationData.Instance.ActiveSessionUsername);
 
-			sliceOptionsMenuDropList.AddItem("Reset to defaults".Localize()).Selected += (s, e) => { UiThread.RunOnIdle(ResetToDefaults); };
+			sliceOptionsMenuDropList.AddItem("Reset to Defaults".Localize()).Selected += (s, e) => { UiThread.RunOnIdle(ResetToDefaults); };
 
 			return sliceOptionsMenuDropList;
 		}
@@ -157,7 +157,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 						}
 						else
 						{
-							ApplicationController.Instance.ReloadAll(null, null);
+							ApplicationController.Instance.ReloadAll();
 						}
 					}
 				},

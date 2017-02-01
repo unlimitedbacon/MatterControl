@@ -54,7 +54,7 @@ namespace MatterHackers.MatterControl.CustomWidgets.LibrarySelector
 		private LinkButtonFactory linkButtonFactory = new LinkButtonFactory();
 		private GuiWidget thumbnailWidget;
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		public LibrarySelectorWidget libraryDataView { get; private set; }
 
@@ -71,6 +71,9 @@ namespace MatterHackers.MatterControl.CustomWidgets.LibrarySelector
 			this.Name = this.ItemName + " Row Item Collection";
 
 			CreateGuiElements(openButtonText);
+
+			MouseEnterBounds += (s, e) => UpdateHoverState();
+			MouseLeaveBounds += (s, e) => UpdateHoverState();
 		}
 
 		public PrintItemCollection PrintItemCollection { get { return printItemCollection; } }
@@ -221,8 +224,6 @@ namespace MatterHackers.MatterControl.CustomWidgets.LibrarySelector
 			WidgetTextColor = RGBA_Bytes.Black;
 			WidgetBackgroundColor = RGBA_Bytes.White;
 
-			TextInfo textInfo = new CultureInfo("en-US", false).TextInfo;
-
 			SetDisplayAttributes();
 
 			FlowLayoutWidget mainContainer = new FlowLayoutWidget(FlowDirection.LeftToRight);
@@ -268,29 +269,36 @@ namespace MatterHackers.MatterControl.CustomWidgets.LibrarySelector
 
 		public override void OnMouseMove(MouseEventArgs mouseEvent)
 		{
-			switch (UnderMouseState)
-			{
-				case UnderMouseState.NotUnderMouse:
-					IsHoverItem = false;
-					break;
-
-				case UnderMouseState.FirstUnderMouse:
-					IsHoverItem = true;
-					break;
-
-				case UnderMouseState.UnderMouseNotFirst:
-					if (ContainsFirstUnderMouseRecursive())
-					{
-						IsHoverItem = true;
-					}
-					else
-					{
-						IsHoverItem = false;
-					}
-					break;
-			}
-
+			UpdateHoverState();
 			base.OnMouseMove(mouseEvent);
+		}
+
+		void UpdateHoverState()
+		{
+			UiThread.RunOnIdle(() =>
+			{
+				switch (UnderMouseState)
+				{
+					case UnderMouseState.NotUnderMouse:
+						IsHoverItem = false;
+						break;
+
+					case UnderMouseState.FirstUnderMouse:
+						IsHoverItem = true;
+						break;
+
+					case UnderMouseState.UnderMouseNotFirst:
+						if (ContainsFirstUnderMouseRecursive())
+						{
+							IsHoverItem = true;
+						}
+						else
+						{
+							IsHoverItem = false;
+						}
+						break;
+				}
+			});
 		}
 
 		private void AddHandlers()

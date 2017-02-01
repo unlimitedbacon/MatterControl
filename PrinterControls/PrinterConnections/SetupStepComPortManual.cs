@@ -16,8 +16,6 @@ namespace MatterHackers.MatterControl.PrinterControls.PrinterConnections
 {
 	public class SetupStepComPortManual : ConnectionWizardPage
 	{
-		private static Regex linuxDefaultUIFilter = new Regex("/dev/ttyS*\\d+", RegexOptions.CultureInvariant | RegexOptions.Compiled);
-
 		private Button nextButton;
 		private Button connectButton;
 		private Button refreshButton;
@@ -28,7 +26,7 @@ namespace MatterHackers.MatterControl.PrinterControls.PrinterConnections
 		private TextWidget printerComPortHelpMessage;
 		private TextWidget printerComPortError;
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 		protected List<SerialPortIndexRadioButton> SerialPortButtonsList = new List<SerialPortIndexRadioButton>();
 
 		public SetupStepComPortManual()
@@ -45,7 +43,7 @@ namespace MatterHackers.MatterControl.PrinterControls.PrinterConnections
 			connectButton.Click += ConnectButton_Click;
 
 			refreshButton = textImageButtonFactory.Generate("Refresh".Localize());
-			refreshButton.Click += (s, e) => WizardWindow.ChangeToPage<SetupStepComPortManual>();
+			refreshButton.Click += (s, e) => UiThread.RunOnIdle(WizardWindow.ChangeToPage<SetupStepComPortManual>);
 
 			//Add buttons to buttonContainer
 			footerRow.AddChild(nextButton);
@@ -70,7 +68,7 @@ namespace MatterHackers.MatterControl.PrinterControls.PrinterConnections
 			container.VAnchor = VAnchor.ParentBottomTop;
 			BorderDouble elementMargin = new BorderDouble(top: 3);
 
-			string serialPortLabel = LocalizedString.Get("Serial Port");
+			string serialPortLabel = "Serial Port".Localize();
 			string serialPortLabelFull = string.Format("{0}:", serialPortLabel);
 
 			TextWidget comPortLabel = new TextWidget(serialPortLabelFull, 0, 0, 12);
@@ -94,7 +92,7 @@ namespace MatterHackers.MatterControl.PrinterControls.PrinterConnections
 			printerComPortHelpLink.VAnchor = VAnchor.ParentBottom;
 			printerComPortHelpLink.Click += (s, e) => printerComPortHelpMessage.Visible = !printerComPortHelpMessage.Visible;
 
-			printerComPortHelpMessage = new TextWidget("The 'Serial Port' identifies which connected device is\nyour printer. Changing which usb plug you use may\nchange the associated serial port.\n\nTip: If you are uncertain, plug-in in your printer and hit\nrefresh. The new port that appears should be your\nprinter.".Localize(), 0, 0, 10);
+			printerComPortHelpMessage = new TextWidget("The 'Serial Port' section lists all available serial\nports on your device. Changing which USB port the printer\nis conneted to may change the associated serial port.\n\nTip: If you are uncertain, unplug/plug in your printer\nand hit refresh. The new port that appears should be\nyour printer.".Localize(), 0, 0, 10);
 			printerComPortHelpMessage.TextColor = ActiveTheme.Instance.PrimaryTextColor;
 			printerComPortHelpMessage.Margin = new BorderDouble(top: 10);
 			printerComPortHelpMessage.Visible = false;
@@ -164,21 +162,7 @@ namespace MatterHackers.MatterControl.PrinterControls.PrinterConnections
 		protected void CreateSerialPortControls(FlowLayoutWidget comPortContainer, string activePrinterSerialPort)
 		{
 			int portIndex = 0;
-			string[] allPorts = FrostedSerialPort.GetPortNames();
-			IEnumerable<string> filteredPorts;
-
-			if (OsInformation.OperatingSystem == OSType.X11)
-			{
-				// A default and naive filter that works well on Ubuntu 14
-				filteredPorts = allPorts.Where(portName => portName != "/dev/tty" && !linuxDefaultUIFilter.Match(portName).Success);
-			}
-			else
-			{
-				// looks_like_mac -- serialPort.StartsWith("/dev/tty."); looks_like_pc -- serialPort.StartsWith("COM")
-				filteredPorts = allPorts.Where(portName => portName.StartsWith("/dev/tty.") || portName.StartsWith("COM"));
-			}
-
-			IEnumerable<string> portsToCreate = filteredPorts.Any() ? filteredPorts : allPorts;
+			string[] portsToCreate = FrostedSerialPort.GetPortNames();
 
 			// Add a radio button for each filtered port
 			foreach (string portName in portsToCreate)
@@ -209,7 +193,7 @@ namespace MatterHackers.MatterControl.PrinterControls.PrinterConnections
 			//If there are still no com ports show a message to that effect
 			if (portIndex == 0)
 			{
-				TextWidget comPortOption = new TextWidget(LocalizedString.Get("No COM ports available"));
+				TextWidget comPortOption = new TextWidget("No COM ports available".Localize());
 				comPortOption.Margin = new BorderDouble(3, 6, 5, 6);
 				comPortOption.TextColor = ActiveTheme.Instance.PrimaryTextColor;
 				comPortContainer.AddChild(comPortOption);
@@ -238,7 +222,7 @@ namespace MatterHackers.MatterControl.PrinterControls.PrinterConnections
 				}
 			}
 
-			throw new Exception(LocalizedString.Get("Could not find a selected button."));
+			throw new Exception("Could not find a selected button.".Localize());
 		}
 
 	}

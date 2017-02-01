@@ -39,7 +39,6 @@ using System.Threading.Tasks;
 public class LicenseAgreementPage : WizardPage
 {
 	public LicenseAgreementPage()
-		: base("Cancel")
 	{
 		string eulaText = StaticData.Instance.ReadAllText("MatterControl EULA.txt").Replace("\r\n", "\n");
 
@@ -66,7 +65,8 @@ public class LicenseAgreementPage : WizardPage
 		acceptButton.Visible = true;
 		cancelButton.Visible = true;
 
-		cancelButton.Click += (s, e) => UiThread.RunOnIdle(WizardWindow.Close);
+		// Exit if EULA is not accepted
+		cancelButton.Click += (s, e) => UiThread.RunOnIdle(MatterControlApplication.Instance.Close);
 
 		//Add buttons to buttonContainer
 		footerRow.AddChild(acceptButton);
@@ -75,30 +75,11 @@ public class LicenseAgreementPage : WizardPage
 
 		footerRow.Visible = true;
 
-		UiThread.RunOnIdle(MakeFrontWindow, 1);
+		UiThread.RunOnIdle(MakeFrontWindow, .2);
 	}
 
 	private void MakeFrontWindow()
 	{
 		this.WizardWindow.BringToFront();
-		if (!HasBeenClosed)
-		{
-			//UiThread.RunOnIdle(MakeFrontWindow, .3);
-		}
-	}
-
-	public override void OnDraw(Graphics2D graphics2D)
-	{
-		base.OnDraw(graphics2D);
-	}
-
-	public override void OnClosed(EventArgs e)
-	{
-		if (UserSettings.Instance.get("SoftwareLicenseAccepted") != "true")
-		{
-			UiThread.RunOnIdle(MatterControlApplication.Instance.Close);
-		}
-
-		base.OnClosed(e);
 	}
 }

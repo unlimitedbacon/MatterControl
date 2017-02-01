@@ -71,28 +71,35 @@ namespace MatterHackers.MatterControl.PrinterControls.PrinterConnections
 			{
 				if (!ProfileManager.Instance.ActiveProfiles.Any())
 				{
-					WizardWindow.ChangeToPage<SetupStepMakeModelName>();
+					UiThread.RunOnIdle(WizardWindow.ChangeToPage<SetupStepMakeModelName>);
 				}
 				else
 				{
 					UiThread.RunOnIdle(WizardWindow.Close);
 				}
 			};
+
 			var createAccountButton = textImageButtonFactory.Generate("Create Account".Localize());
 			createAccountButton.Name = "Create Account From Connection Wizard Button";
 			createAccountButton.Margin = new Agg.BorderDouble(right: 5);
 			createAccountButton.Click += (s, e) =>
 			{
-				WizardWindow.ChangeToAccountCreate();
-				UiThread.RunOnIdle(WizardWindow.Close);
+				UiThread.RunOnIdle (() => 
+				{
+					WizardWindow.Close();
+					WizardWindow.ChangeToAccountCreate();
+				});
 			};
 
 			var signInButton = textImageButtonFactory.Generate("Sign In".Localize());
 			signInButton.Name = "Sign In From Connection Wizard Button";
 			signInButton.Click += (s, e) =>
 			{
-				WizardWindow.ShowAuthDialog?.Invoke();
-				UiThread.RunOnIdle(WizardWindow.Close);
+				UiThread.RunOnIdle (() => 
+				{
+					WizardWindow.Close();
+					WizardWindow.ShowAuthDialog?.Invoke();
+				});
 			};
 
 			footerRow.AddChild(skipButton);

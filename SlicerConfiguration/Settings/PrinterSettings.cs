@@ -57,7 +57,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 		public static RootedObjectEventHandler PrintLevelingEnabledChanged = new RootedObjectEventHandler();
 
-		private static PrinterSettingsLayer baseLayerCache;
+		public static PrinterSettings Empty { get; }
 
 		public int DocumentVersion { get; set; } = LatestVersion;
 
@@ -73,12 +73,96 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		[JsonIgnore]
 		internal PrinterSettingsLayer MaterialLayer { get; private set; }
 
+		public PrinterSettingsLayer StagedUserSettings { get; set; } = new PrinterSettingsLayer();
+
+		static PrinterSettings()
+		{
+			Empty = new PrinterSettings() { ID = "EmptyProfile" };
+			Empty.UserLayer[SettingsKey.printer_name] = "Printers...".Localize();
+		}
+
 		public PrinterSettings()
 		{
 			this.Helpers = new SettingsHelpers(this);
 		}
 
 		public List<GCodeMacro> Macros { get; set; } = new List<GCodeMacro>();
+		public IEnumerable<GCodeMacro> UserMacros()
+		{
+			foreach (var macro in Macros)
+			{
+				if (!macro.ActionGroup)
+				{
+					yield return macro;
+				}
+			}
+		}
+
+		public IEnumerable<GCodeMacro> ActionMacros()
+		{
+			foreach (var macro in Macros)
+			{
+				if (macro.ActionGroup)
+				{
+					yield return macro;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Restore deactivated user overrides by iterating the active preset and removing/restoring matching items
+		/// </summary>
+		public void RestoreConflictingUserOverrides(PrinterSettingsLayer settingsLayer)
+		{
+			if (settingsLayer == null)
+			{
+				return;
+			}
+
+			foreach (var settingsKey in settingsLayer.Keys)
+			{
+				RestoreUserOverride(settingsLayer, settingsKey);
+			}
+		}
+
+		private void RestoreUserOverride(PrinterSettingsLayer settingsLayer, string settingsKey)
+		{
+			string stagedUserOverride;
+			if (StagedUserSettings.TryGetValue(settingsKey, out stagedUserOverride))
+			{
+				StagedUserSettings.Remove(settingsKey);
+				UserLayer[settingsKey] = stagedUserOverride;
+			}
+		}
+
+		/// <summary>
+		/// Move conflicting user overrides to the temporary staging area, allowing presets values to take effect
+		/// </summary>
+		public void DeactivateConflictingUserOverrides(PrinterSettingsLayer settingsLayer)
+		{
+			if (settingsLayer == null)
+			{
+				return;
+			}
+
+			foreach (var settingsKey in settingsLayer.Keys)
+			{
+				StashUserOverride(settingsLayer, settingsKey);
+			}
+		}
+
+		/// <summary>
+		/// Move conflicting user overrides to the temporary staging area, allowing presets values to take effect
+		/// </summary>
+		private void StashUserOverride(PrinterSettingsLayer settingsLayer, string settingsKey)
+		{
+			string userOverride;
+			if (this.UserLayer.TryGetValue(settingsKey, out userOverride))
+			{
+				this.UserLayer.Remove(settingsKey);
+				this.StagedUserSettings.Add(settingsKey, userOverride);
+			}
+		}
 
 		[OnDeserialized]
 		internal void OnDeserializedMethod(StreamingContext context)
@@ -94,13 +178,17 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 		public PrinterSettingsLayer OemLayer { get; set; }
 
-		public void Merge(PrinterSettingsLayer destinationLayer, PrinterSettings settingsToImport, List<PrinterSettingsLayer> rawSourceFilter)
+		public void Merge(PrinterSettingsLayer destinationLayer, PrinterSettings settingsToImport, List<PrinterSettingsLayer> rawSourceFilter, bool setLayerName)
 		{
 			HashSet<string> skipKeys = new HashSet<string>
 			{
-				SettingsKey.layer_name,
 				"layer_id",
 			};
+
+			if (!setLayerName)
+			{
+				skipKeys.Add(SettingsKey.layer_name);
+			}
 
 			var destinationFilter = new List<PrinterSettingsLayer>
 			{
@@ -110,9 +198,6 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}.Where(layer => layer != null);
 
 			var sourceFilter = rawSourceFilter.Where(layer => layer != null);
-
-			var baseLayer = settingsToImport.BaseLayer;
-			settingsToImport.BaseLayer = new PrinterSettingsLayer();
 
 			foreach (var keyName in PrinterSettings.KnownSettings)
 			{
@@ -131,7 +216,10 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				}
 			}
 
-			settingsToImport.BaseLayer = baseLayer;
+			if (setLayerName)
+			{
+				destinationLayer[SettingsKey.layer_name] = settingsToImport.GetValue(SettingsKey.layer_name, sourceFilter);
+			}
 
 			this.Save();
 
@@ -157,11 +245,11 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		{
 			get
 			{
-				return GetValue("active_quality_key");
+				return GetValue(SettingsKey.active_quality_key);
 			}
 			internal set
 			{
-				SetValue("active_quality_key", value);
+				SetValue(SettingsKey.active_quality_key, value);
 				QualityLayer = GetQualityLayer(value);
 				Save();
 			}
@@ -227,29 +315,37 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				return SHA1;
 			}
 		}
-		
+
 		private string DocumentPath => ProfileManager.Instance.ProfilePath(this.ID);
+
+		[JsonIgnore]
+		public bool AutoSave { get; set; } = true;
 
 		public void Save()
 		{
 			// Skip save operation if on the EmptyProfile
-			if (!this.PrinterSelected)
+			if (!this.PrinterSelected || !this.AutoSave)
 			{
 				return;
 			}
 
-			string json = this.ToJson();
+			Save(DocumentPath);
+		}
 
-			var printerInfo = ProfileManager.Instance[this.ID];
-			if (printerInfo != null)
-			{
-				printerInfo.ContentSHA1 = this.ComputeSha1(json);
-				ProfileManager.Instance.Save();
-			}
-
+		public void Save(string filePath)
+		{
 			lock (writeLock)
 			{
-				File.WriteAllText(DocumentPath, json);
+				string json = this.ToJson();
+
+				var printerInfo = ProfileManager.Instance[this.ID];
+				if (printerInfo != null)
+				{
+					printerInfo.ContentSHA1 = this.ComputeSha1(json);
+					ProfileManager.Instance.Save();
+				}
+
+				File.WriteAllText(filePath, json);
 			}
 
 			if (ActiveSliceSettings.Instance?.ID == this.ID)
@@ -326,7 +422,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				{
 					// If we still have failed to recover a profile, create an empty profile with
 					// just enough data to delete the printer
-					printerSettings = ProfileManager.LoadEmptyProfile();
+					printerSettings = PrinterSettings.Empty;
 					printerSettings.ID = printerInfo.ID;
 					printerSettings.UserLayer[SettingsKey.device_token] = printerInfo.DeviceToken;
 					printerSettings.Helpers.SetComPort(printerInfo.ComPort);
@@ -398,7 +494,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 		private static async Task<PrinterSettings> GetFirstValidHistoryItem(PrinterInfo printerInfo)
 		{
-			var recentProfileHistoryItems = await ApplicationController.GetProfileHistory(printerInfo.DeviceToken);
+			var recentProfileHistoryItems = await ApplicationController.GetProfileHistory?.Invoke(printerInfo.DeviceToken);
 			if (recentProfileHistoryItems != null)
 			{
 				// Iterate history, skipping the first item, limiting to the next five, attempt to load and return the first success
@@ -470,23 +566,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		}
 
 		[JsonIgnore]
-		public PrinterSettingsLayer BaseLayer
-		{
-			get
-			{
-				if (baseLayerCache == null)
-				{
-					baseLayerCache = SliceSettingsOrganizer.Instance.GetDefaultSettings();
-				}
-
-				return baseLayerCache;
-			}
-
-			internal set
-			{
-				baseLayerCache = value;
-			}
-		}
+		public PrinterSettingsLayer BaseLayer { get; set; } = SliceSettingsOrganizer.Instance.GetDefaultSettings();
 
 		private IEnumerable<PrinterSettingsLayer> defaultLayerCascade
 		{
@@ -517,6 +597,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		}
 		[JsonIgnore]
 		public SettingsHelpers Helpers { get; set; }
+
 		[JsonIgnore]
 		public bool PrinterSelected => OemLayer?.Keys.Count > 0;
 
@@ -570,7 +651,6 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 		static Dictionary<string, Type> expectedMappingTypes = new Dictionary<string, Type>()
 		{
 			[SettingsKey.extruders_share_temperature] = typeof(int),
-			[SettingsKey.extruder_count] = typeof(int),
 			[SettingsKey.extruders_share_temperature] = typeof(bool),
 			[SettingsKey.has_heated_bed] = typeof(bool),
 			[SettingsKey.nozzle_diameter] = typeof(double),
@@ -610,12 +690,6 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			}
 			else if (typeof(T) == typeof(int))
 			{
-				if (settingsKey == SettingsKey.extruder_count
-					&& this.GetValue<bool>(SettingsKey.extruders_share_temperature))
-				{
-					return (T)(object)1;
-				}
-
 				int result;
 				int.TryParse(this.GetValue(settingsKey), out result);
 				return (T)(object)(result);
@@ -818,6 +892,24 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 					return false;
 				}
 
+				if (GetValue<double>(SettingsKey.external_perimeter_extrusion_width) > GetValue<double>(SettingsKey.nozzle_diameter) * 4)
+				{
+					string error = "'External Perimeter Extrusion Width' must be less than or equal to the 'Nozzle Diameter' * 4.".Localize();
+					string details = string.Format("External Perimeter Extrusion Width = {0}\nNozzle Diameter = {1}".Localize(), GetValue(SettingsKey.external_perimeter_extrusion_width), GetValue<double>(SettingsKey.nozzle_diameter));
+					string location = "Location: 'Settings & Controls' -> 'Settings' -> 'Filament' -> 'Extrusion' -> 'External Perimeter'".Localize();
+					StyledMessageBox.ShowMessageBox(null, string.Format("{0}\n\n{1}\n\n{2}", error, details, location), "Slice Error".Localize());
+					return false;
+				}
+
+				if (GetValue<double>(SettingsKey.external_perimeter_extrusion_width) <= 0)
+				{
+					string error = "'External Perimeter Extrusion Width' must be greater than 0.".Localize();
+					string details = string.Format("External Perimeter Extrusion Width = {0}".Localize(), GetValue(SettingsKey.external_perimeter_extrusion_width));
+					string location = "Location: 'Settings & Controls' -> 'Settings' -> 'Filament' -> 'Extrusion' -> 'External Perimeter'".Localize();
+					StyledMessageBox.ShowMessageBox(null, string.Format("{0}\n\n{1}\n\n{2}", error, details, location), "Slice Error".Localize());
+					return false;
+				}
+
 				if (GetValue<double>(SettingsKey.min_fan_speed) > 100)
 				{
 					string error = "The Minimum Fan Speed can only go as high as 100%.".Localize();
@@ -869,7 +961,7 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 				// If the given speed is part of the current slice engine then check that it is greater than 0.
 				if (!ValidateGoodSpeedSettingGreaterThan0("bridge_speed", normalSpeedLocation)) return false;
 				if (!ValidateGoodSpeedSettingGreaterThan0("external_perimeter_speed", normalSpeedLocation)) return false;
-				if (!ValidateGoodSpeedSettingGreaterThan0("first_layer_speed", normalSpeedLocation)) return false;
+				if (!ValidateGoodSpeedSettingGreaterThan0(SettingsKey.first_layer_speed, normalSpeedLocation)) return false;
 				if (!ValidateGoodSpeedSettingGreaterThan0("gap_fill_speed", normalSpeedLocation)) return false;
 				if (!ValidateGoodSpeedSettingGreaterThan0("infill_speed", normalSpeedLocation)) return false;
 				if (!ValidateGoodSpeedSettingGreaterThan0("perimeter_speed", normalSpeedLocation)) return false;
@@ -952,13 +1044,21 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 
 		public void SetValue(string settingsKey, string settingsValue, PrinterSettingsLayer layer = null)
 		{
-			var persistenceLayer = layer ?? UserLayer;
-
-			if(settingsKey == SettingsKey.active_theme_name)
+			// Stash user overrides if a non-user override is being set
+			if (layer != null && layer != UserLayer)
 			{
-				// also save it to the user settings so we can load it first thing on startup before a profile is loaded.
-				UserSettings.Instance.set(UserSettingsKey.ActiveThemeName, settingsValue);
+				StashUserOverride(layer, settingsKey);
 			}
+			else
+			{
+				// Remove any staged/conflicting user override, making this the new and active user override
+				if (StagedUserSettings.ContainsKey(settingsKey))
+				{
+					StagedUserSettings.Remove(settingsKey);
+				}
+			}
+
+			var persistenceLayer = layer ?? UserLayer;
 
 			// If the setting exists and is set the requested value, exit without setting or saving
 			string existingValue;
@@ -977,12 +1077,19 @@ namespace MatterHackers.MatterControl.SlicerConfiguration
 			return JsonConvert.SerializeObject(this, formatting);
 		}
 
-		internal void ClearValue(string sliceSetting, PrinterSettingsLayer layer = null)
+		internal void ClearValue(string settingsKey, PrinterSettingsLayer layer = null)
 		{
 			var persistenceLayer = layer ?? UserLayer;
-			if (persistenceLayer.ContainsKey(sliceSetting))
+			if (persistenceLayer.ContainsKey(settingsKey))
 			{
-				persistenceLayer.Remove(sliceSetting);
+				persistenceLayer.Remove(settingsKey);
+
+				// Restore user overrides if a non-user override is being cleared
+				if (layer != null && layer != UserLayer)
+				{
+					RestoreUserOverride(layer, settingsKey);
+				}
+
 				Save();
 			}
 		}

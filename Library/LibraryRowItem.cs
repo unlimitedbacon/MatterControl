@@ -62,7 +62,7 @@ namespace MatterHackers.MatterControl.PrintLibrary
 		private GuiWidget thumbnailWidget;
         protected GuiWidget middleColumn;
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		/// <summary>
 		/// Indicates that this item is a logical element meant to support the view or if it's a standard provider item
@@ -80,6 +80,9 @@ namespace MatterHackers.MatterControl.PrintLibrary
 			this.libraryDataView = libraryDataView;
 			this.IsViewHelperItem = false;
 			this.EnableSlideInActions = true;
+
+			MouseEnterBounds += (s, e) => UpdateHoverState();
+			MouseLeaveBounds += (s, e) => UpdateHoverState();
 		}
 
 		public string ItemName { get; protected set; }
@@ -182,8 +185,6 @@ namespace MatterHackers.MatterControl.PrintLibrary
 
 			WidgetTextColor = RGBA_Bytes.Black;
 			WidgetBackgroundColor = RGBA_Bytes.White;
-
-			TextInfo textInfo = new CultureInfo("en-US", false).TextInfo;
 
 			SetDisplayAttributes();
 
@@ -307,29 +308,36 @@ namespace MatterHackers.MatterControl.PrintLibrary
 
 		public override void OnMouseMove(MouseEventArgs mouseEvent)
 		{
-			switch (UnderMouseState)
-			{
-				case UnderMouseState.NotUnderMouse:
-					IsHoverItem = false;
-					break;
-
-				case UnderMouseState.FirstUnderMouse:
-					IsHoverItem = true;
-					break;
-
-				case UnderMouseState.UnderMouseNotFirst:
-					if (ContainsFirstUnderMouseRecursive())
-					{
-						IsHoverItem = true;
-					}
-					else
-					{
-						IsHoverItem = false;
-					}
-					break;
-			}
-
+			UpdateHoverState();
 			base.OnMouseMove(mouseEvent);
+		}
+
+		void UpdateHoverState()
+		{
+			UiThread.RunOnIdle(() =>
+			{
+				switch (UnderMouseState)
+				{
+					case UnderMouseState.NotUnderMouse:
+						IsHoverItem = false;
+						break;
+
+					case UnderMouseState.FirstUnderMouse:
+						IsHoverItem = true;
+						break;
+
+					case UnderMouseState.UnderMouseNotFirst:
+						if (ContainsFirstUnderMouseRecursive())
+						{
+							IsHoverItem = true;
+						}
+						else
+						{
+							IsHoverItem = false;
+						}
+						break;
+				}
+			});
 		}
 
 		private void AddHandlers()
@@ -374,14 +382,7 @@ namespace MatterHackers.MatterControl.PrintLibrary
 		{
 			//this.VAnchor = Agg.UI.VAnchor.FitToChildren;
 			this.HAnchor = Agg.UI.HAnchor.ParentLeftRight;
-			if (UserSettings.Instance.DisplayMode == ApplicationDisplayType.Touchscreen)
-			{
-				this.Height = 65;
-			}
-			else
-			{
-				this.Height = 50;
-			}
+			this.Height = 50 * GuiWidget.DeviceScale;
 
 			this.Padding = new BorderDouble(0);
 			this.Margin = new BorderDouble(6, 0, 6, 6);

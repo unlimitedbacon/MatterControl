@@ -110,7 +110,9 @@ namespace MatterHackers.MatterControl
 						return sliceSettingsWidget;
 				});
 
-			this.TabBar.AddChild(new HorizontalLine() { Margin = new BorderDouble(4, 10) });
+			BorderDouble horizontalSpacerMargin = new BorderDouble(4, 10);
+
+			this.TabBar.AddChild(new HorizontalLine() { Margin = horizontalSpacerMargin });
 
 			this.AddTab(
 				"Controls Tab",
@@ -120,7 +122,7 @@ namespace MatterHackers.MatterControl
 			// TODO: How to handle reload? Create .Reload on LazyTab? Create accessor for tabs["Controls Tab"].Reload()?
 			//manualControlsPage = new TabPage(, printerControlsLabel);
 
-			this.TabBar.AddChild(new HorizontalLine() { Margin = new BorderDouble(4, 10) });
+			this.TabBar.AddChild(new HorizontalLine() { Margin = horizontalSpacerMargin });
 
 			this.AddTab(
 				"Queue Tab",
@@ -142,7 +144,18 @@ namespace MatterHackers.MatterControl
 				() => new PrintHistoryWidget());
 			}
 
-			this.TabBar.AddChild(new HorizontalLine() { Margin = new BorderDouble(4, 10) });
+			this.TabBar.AddChild(new HorizontalLine() { Margin = horizontalSpacerMargin });
+
+			this.Load += (s, e) =>
+			{
+				if (!simpleMode && !TouchScreenIsTall)
+				{
+					foreach (GuiWidget horizontalLine in this.TabBar.Children<HorizontalLine>())
+					{
+						horizontalLine.Margin = new BorderDouble(4, 5);
+					}
+				}
+			};
 
 			// Make sure we have the right scroll position when we create this view
 			// This is not working well enough. So, I disabled it until it can be fixed.
@@ -189,8 +202,6 @@ namespace MatterHackers.MatterControl
 			QueueData.Instance.ItemAdded.RegisterEvent(NumQueueItemsChanged, ref unregisterEvents);
 			QueueData.Instance.ItemRemoved.RegisterEvent(NumQueueItemsChanged, ref unregisterEvents);
 
-			ActiveSliceSettings.ActivePrinterChanged.RegisterEvent((s, e) => ApplicationController.Instance.ReloadAdvancedControlsPanel(), ref unregisterEvents);
-
 			PrinterConnectionAndCommunication.Instance.ActivePrintItemChanged.RegisterEvent((s, e) =>
 			{
 				// ReloadPartPreview
@@ -219,7 +230,24 @@ namespace MatterHackers.MatterControl
 				};
 			}
 		}
-		private event EventHandler unregisterEvents;
+
+		public bool TouchScreenIsTall
+		{
+			get
+			{
+				foreach(GuiWidget topParent in this.Parents<SystemWindow>())
+				{
+					if(topParent.Height < 610)
+					{
+						return false;
+					}
+				}
+
+				return true;
+			}
+		}
+
+		private EventHandler unregisterEvents;
 
 		public override void OnClosed(EventArgs e)
 		{
@@ -277,7 +305,7 @@ namespace MatterHackers.MatterControl
 
 		private void NumQueueItemsChanged(object sender, EventArgs widgetEvent)
 		{
-			QueueTabPage.Text = string.Format("{0} ({1})", "Queue".Localize().ToUpper(), QueueData.Instance.Count);
+			QueueTabPage.Text = string.Format("{0} ({1})", "Queue".Localize().ToUpper(), QueueData.Instance.ItemCount);
 		}
 
 		private void AddTab(string name, string tabTitle, Func<GuiWidget> generator)

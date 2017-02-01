@@ -46,7 +46,7 @@ namespace MatterHackers.MatterControl
 
 		List<CheckBox> checkBoxes = new List<CheckBox>();
 
-		public CopyGuestProfilesToUser(Action afterProfilesImported)
+		public CopyGuestProfilesToUser()
 		: base("Close", "Copy Printers to Account")
 		{
 			var scrollWindow = new ScrollableWidget()
@@ -68,8 +68,8 @@ namespace MatterHackers.MatterControl
 
 			var byCheckbox = new Dictionary<CheckBox, PrinterInfo>();
 
-			var guestProfileManager = ProfileManager.LoadGuestDB();
-			if (guestProfileManager?.Profiles.Count > 0)
+			var guest = ProfileManager.Load("guest");
+			if (guest?.Profiles.Count > 0)
 			{
 				container.AddChild(new TextWidget("Printers to Copy:".Localize())
 				{
@@ -77,7 +77,7 @@ namespace MatterHackers.MatterControl
 					Margin = new BorderDouble(0, 3, 0, 15),
 				});
 
-				foreach (var printerInfo in guestProfileManager.Profiles)
+				foreach (var printerInfo in guest.Profiles)
 				{
 					var checkBox = new CheckBox(printerInfo.Name)
 					{
@@ -94,6 +94,7 @@ namespace MatterHackers.MatterControl
 			}
 
 			var syncButton = textImageButtonFactory.Generate("Copy".Localize());
+			syncButton.Name = "CopyProfilesButton";
 			syncButton.Click += (s, e) =>
 			{
 				// do the import
@@ -104,28 +105,28 @@ namespace MatterHackers.MatterControl
 						// import the printer
 						var printerInfo = byCheckbox[checkBox];
 
-						string existingPath = Path.Combine(ProfileManager.GuestDBDirectory, printerInfo.ID + ProfileManager.ProfileExtension); ;
-
-						ProfileManager.Instance.Profiles.Add(printerInfo);
-						guestProfileManager.Profiles.Remove(printerInfo);
+						string existingPath = guest.ProfilePath(printerInfo);
 
 						// PrinterSettings files must actually be copied to the users profile directory
 						if (File.Exists(existingPath))
 						{
 							File.Copy(existingPath, printerInfo.ProfilePath);
+
+							// Only add if copy succeeds
+							ProfileManager.Instance.Profiles.Add(printerInfo);
 						}
 					}
 				}
 
-				guestProfileManager.Save();
+				guest.Save();
 
-				// close the window
+				// Close the window and update the PrintersImported flag
 				UiThread.RunOnIdle(() =>
 				{
 					WizardWindow.Close();
 
-					// Call back into the original source
-					afterProfilesImported?.Invoke();
+					ProfileManager.Instance.PrintersImported = true;
+					ProfileManager.Instance.Save();
 				});
 			};
 
@@ -135,12 +136,14 @@ namespace MatterHackers.MatterControl
 			syncButton.Visible = true;
 			cancelButton.Visible = true;
 
+			// Close the window and update the PrintersImported flag
 			cancelButton.Click += (s, e) => UiThread.RunOnIdle(() =>
 			{
 				WizardWindow.Close();
 				if (rememberChoice.Checked)
 				{
-					afterProfilesImported?.Invoke();
+					ProfileManager.Instance.PrintersImported = true;
+					ProfileManager.Instance.Save();
 				}
 			});
 

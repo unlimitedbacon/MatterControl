@@ -1,6 +1,7 @@
 ﻿using MatterHackers.MatterControl.DataStorage;
 using System.Collections.Generic;
 using System.Linq;
+using MatterHackers.Agg.UI;
 
 namespace MatterHackers.MatterControl
 {
@@ -11,7 +12,6 @@ namespace MatterHackers.MatterControl
 		public const string UpdateFeedType = nameof(UpdateFeedType);
 		public const string ApplicationDisplayMode = nameof(ApplicationDisplayMode);
 		public const string defaultRenderSetting = nameof(defaultRenderSetting);
-		public const string ActiveThemeName = nameof(ActiveThemeName);
 		public const string ThumbnailRenderingMode = nameof(ThumbnailRenderingMode);
 		public const string CredentialsInvalid = nameof(CredentialsInvalid);
 		public const string CredentialsInvalidReason = nameof(CredentialsInvalidReason);
@@ -56,6 +56,7 @@ namespace MatterHackers.MatterControl
 						if (globalInstance == null)
 						{
 							globalInstance = new UserSettings();
+							ToolTipManager.AllowToolTips = !UserSettings.Instance.IsTouchScreen;
 						}
 					}
 				}

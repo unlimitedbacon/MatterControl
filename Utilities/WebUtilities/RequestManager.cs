@@ -39,6 +39,10 @@ namespace MatterHackers.MatterControl
 	{
 		public string LastResponse { protected set; get; }
 
+		/// <summary>
+		/// Gets or sets the time-out value in milliseconds 
+		/// </summary>
+		/// <value>The timeout.</value>
 		public int Timeout { get; internal set; } = 100000;
 
 		private CookieContainer cookies = new CookieContainer();
@@ -86,30 +90,14 @@ namespace MatterHackers.MatterControl
 
 		public HttpWebResponse SendPOSTRequest(string uri, string content, string signIn, string password, bool allowAutoRedirect)
 		{
-			HttpWebRequest request = GeneratePOSTRequest(uri, content, signIn, password, allowAutoRedirect);
+			HttpWebRequest request = GenerateRequest(uri, content, "POST", null, null, allowAutoRedirect);
 			return GetResponse(request);
 		}
 
 		public HttpWebResponse SendGETRequest(string uri, string signIn, string password, bool allowAutoRedirect)
 		{
-			HttpWebRequest request = GenerateGETRequest(uri, signIn, password, allowAutoRedirect);
+			HttpWebRequest request = GenerateRequest (uri, null, "GET", null, null, allowAutoRedirect);
 			return GetResponse(request);
-		}
-
-		public HttpWebResponse SendRequest(string uri, string content, string method, string signIn, string password, bool allowAutoRedirect)
-		{
-			HttpWebRequest request = GenerateRequest(uri, content, method, signIn, password, allowAutoRedirect);
-			return GetResponse(request);
-		}
-
-		public HttpWebRequest GenerateGETRequest(string uri, string signIn, string password, bool allowAutoRedirect)
-		{
-			return GenerateRequest(uri, null, "GET", null, null, allowAutoRedirect);
-		}
-
-		public HttpWebRequest GeneratePOSTRequest(string uri, string content, string signIn, string password, bool allowAutoRedirect)
-		{
-			return GenerateRequest(uri, content, "POST", null, null, allowAutoRedirect);
 		}
 
 		internal HttpWebRequest GenerateRequest(string uri, string content, string method, string signIn, string password, bool allowAutoRedirect)
@@ -120,7 +108,6 @@ namespace MatterHackers.MatterControl
 			}
 			// Create a request using a URL that can receive a post.
 			HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create(uri);
-			// Set the Method property of the request to POST.
 			request.Method = method;
 
 			request.Timeout = this.Timeout;
@@ -188,7 +175,6 @@ namespace MatterHackers.MatterControl
 				response = (HttpWebResponse)request.GetResponse();
 				cookies.Add(response.Cookies);
 
-				Stream responseStream = response.GetResponseStream();
 				GetResponseContent(response);
 			}
 			catch (WebException ex)

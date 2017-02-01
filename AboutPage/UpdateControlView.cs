@@ -43,7 +43,7 @@ namespace MatterHackers.MatterControl
 		private Button installUpdateLink;
 		private TextWidget updateStatusText;
 
-		private event EventHandler unregisterEvents;
+		private EventHandler unregisterEvents;
 
 		private RGBA_Bytes offWhite = new RGBA_Bytes(245, 245, 245);
 		private TextImageButtonFactory textImageButtonFactory = new TextImageButtonFactory();
@@ -92,10 +92,7 @@ namespace MatterHackers.MatterControl
 
 		public override void OnClosed(EventArgs e)
 		{
-			if (unregisterEvents != null)
-			{
-				unregisterEvents(this, null);
-			}
+			unregisterEvents?.Invoke(this, null);
 			base.OnClosed(e);
 		}
 

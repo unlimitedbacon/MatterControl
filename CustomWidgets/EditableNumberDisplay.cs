@@ -1,6 +1,7 @@
 ﻿using MatterHackers.Agg;
 using MatterHackers.Agg.UI;
 using System;
+using MatterHackers.Localizations;
 
 namespace MatterHackers.MatterControl
 {
@@ -45,7 +46,7 @@ namespace MatterHackers.MatterControl
 			valueDisplay.TextColor = ActiveTheme.Instance.PrimaryTextColor;
 			valueDisplay.Margin = new BorderDouble(6);
 
-			clickableValueContainer.Click += new EventHandler(editField_Click);
+			clickableValueContainer.Click += editField_Click;
 
 			clickableValueContainer.AddChild(valueDisplay);
 			clickableValueContainer.SetBoundsToEncloseChildren();
@@ -60,7 +61,7 @@ namespace MatterHackers.MatterControl
 			// TODO: This hack needs a unit test and then pass and then remove this line.
 			this.MinimumSize = new VectorMath.Vector2(0, numberInputField.Height);
 
-			setButton = textImageButtonFactory.Generate("SET");
+			setButton = textImageButtonFactory.Generate("SET".Localize());
 			setButton.VAnchor = VAnchor.ParentCenter;
 			setButton.Margin = new BorderDouble(left: 6);
 			setButton.Visible = false;
@@ -77,7 +78,7 @@ namespace MatterHackers.MatterControl
 				}
 			};
 
-			setButton.Click += new EventHandler(setButton_Click);
+			setButton.Click += setButton_Click;
 
 			this.AddChild(clickableValueContainer);
 			this.AddChild(numberInputField);

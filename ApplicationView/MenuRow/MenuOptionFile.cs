@@ -11,15 +11,13 @@ using System;
 using System.IO;
 using System.Linq;
 using MatterHackers.MatterControl.SlicerConfiguration;
+using MatterHackers.MatterControl.CustomWidgets;
 
 namespace MatterHackers.MatterControl
 {
 	public class MenuOptionFile : MenuBase
 	{
 		public static MenuOptionFile CurrentMenuOptionFile = null;
-
-		public EventHandler RedeemDesignCode;
-		public EventHandler EnterShareCode;
 
 		public MenuOptionFile()
 			: base("File".Localize())
@@ -33,11 +31,14 @@ namespace MatterHackers.MatterControl
 		{
 			return new List<MenuItemAction>
 			{
+				// TODO: Helper while building printing window prototype... remove once finalized
+				new MenuItemAction("Printing Window...".Localize(), () => PrintingWindow.Show(() => Console.WriteLine())),
+				new MenuItemAction("------------------------", null),
 				new MenuItemAction("Add Printer".Localize(), AddPrinter_Click),
 				new MenuItemAction("Import Printer".Localize(), ImportPrinter),
 				new MenuItemAction("Add File To Queue".Localize(), importFile_Click),
-				new MenuItemAction("Redeem Design Code".Localize(), () => RedeemDesignCode?.Invoke(this, null)),
-				new MenuItemAction("Enter Share Code".Localize(), () => EnterShareCode?.Invoke(this, null)),
+				new MenuItemAction("Redeem Design Code".Localize(), () => ApplicationController.Instance.RedeemDesignCode?.Invoke()),
+				new MenuItemAction("Enter Share Code".Localize(), () => ApplicationController.Instance.EnterShareCode?.Invoke()),
 				new MenuItemAction("------------------------", null),
 				new MenuItemAction("Exit".Localize(), () =>
 				{

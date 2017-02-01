@@ -134,6 +134,7 @@
     <Compile Include="ActionBar\PrintStatusRow.cs" />
     <Compile Include="ActionBar\TemperatureWidgetBase.cs" />
     <Compile Include="ActionBar\TemperatureWidgetExtruder.cs" />
+    <Compile Include="ApplicationView\MenuRow\MenuOptionAction.cs" />
     <Compile Include="ApplicationView\MenuRow\MenuOptionHelp.cs" />
     <Compile Include="ApplicationView\MenuRow\MenuOptionSettings.cs" />
     <Compile Include="ApplicationView\MenuRow\MenuOptionFile.cs" />
@@ -167,11 +168,12 @@
     <Compile Include="CustomWidgets\LibrarySelector\LibrarySelectorRowItemCollection.cs" />
     <Compile Include="CustomWidgets\LibrarySelector\LibrarySelectorWidget.cs" />
     <Compile Include="CustomWidgets\PopOutTextTab.cs" />
+    <Compile Include="CustomWidgets\PrintingWindow.cs" />
     <Compile Include="CustomWidgets\SlideWidget.cs" />
-    <Compile Include="CustomWidgets\SolidProgressControl.cs" />
     <Compile Include="CustomWidgets\SolidSlider.cs" />
     <Compile Include="CustomWidgets\ThumbnailTracer.cs" />
     <Compile Include="DataStorage\Models.cs" />
+    <Compile Include="PrinterCommunication\Io\NotPrintingStream.cs" />
     <Compile Include="SetupWizard\CopyGuestProfilesToUser.cs" />
     <Compile Include="Library\RenameItemWindow.cs" />
     <Compile Include="Library\Provider\LibraryProviderHistory.cs" />
@@ -250,6 +252,7 @@
     <Compile Include="SetupWizard\ExportSettingsPage.cs" />
     <Compile Include="SetupWizard\LicenseAgreementPage.cs" />
     <Compile Include="SetupWizard\PrinterProfileHistoryPage.cs" />
+    <Compile Include="ConfigurationPage\RunningMacroPage.cs" />
     <Compile Include="SetupWizard\SyncingPrintersPage.cs" />
     <Compile Include="SetupWizard\WizardPage.cs" />
     <Compile Include="SetupWizard\AndroidSetupOptionsPage.cs" />
@@ -443,13 +446,14 @@
     <Content Include="application.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="StaticData\OEMSettings\AboutPage.html" />
     <Content Include="StaticData\SliceSettings\Layouts.txt" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
     <None Include="SlicerConfiguration\Settings\SettingsDiagram.cd" />
     <None Include="packages.config" />
-    <None Include="StaticData\PrinterSettings\config.ini" />
+    <None Include="StaticData\OEMSettings\Settings.json" />
     <None Include="StaticData\SliceSettings\Properties.json" />
   </ItemGroup>
   <ItemGroup>
@@ -559,6 +563,18 @@
     <ProjectReference Include="PrinterDriverInstaller\InfInstaller.csproj">
       <Project>{990A9AD3-B6A4-407B-9DFC-9C722AF7C9B9}</Project>
       <Name>InfInstaller</Name>
+    </ProjectReference>
+    <ProjectReference Include="Submodules\MatterSlice\MSClipperLib\MSClipperLib.csproj">
+      <Project>{2c564be1-352d-4ddb-8226-f0981f983c60}</Project>
+      <Name>MSClipperLib</Name>
+    </ProjectReference>
+    <ProjectReference Include="Submodules\MatterSlice\Pathfinding\Pathfinding.csproj">
+      <Project>{8cb3464f-6130-4edb-8dc6-ccd2697fafbb}</Project>
+      <Name>Pathfinding</Name>
+    </ProjectReference>
+    <ProjectReference Include="Submodules\MatterSlice\QuadTree\QuadTree.csproj">
+      <Project>{23ec3364-7c93-4169-9ab2-7181c66004c0}</Project>
+      <Name>QuadTree</Name>
     </ProjectReference>
   </ItemGroup>
 </Project>
